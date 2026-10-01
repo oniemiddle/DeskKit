@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
 using DeskKit.Core.Abstractions;
+using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
 using DeskKit.Platform.Windows;
@@ -159,6 +160,7 @@ internal sealed class DesktopLayerSelfTest
         CheckStyles(hwnd);
         await CheckShowDesktopResistanceAsync(layer, hwnd);
         await CheckMoveAndResizeAsync(layer, window, hwnd);
+        await CheckDragTrackingAsync(window, hwnd);
         await CheckWidgetShellAsync();
     }
 
@@ -440,6 +442,84 @@ internal sealed class DesktopLayerSelfTest
         DesktopDiagnostics.GetWindowsBelow(hwnd)
             .Count(w => w.IsVisible && w.HasSize && !ShellWindowClasses.Contains(w.ClassName));
 
+    /// <summary>
+    /// Replays the real drag loop against a real window, using the same
+    /// coordinate conversions the pointer handler uses.
+    /// <para>
+    /// This is the end-to-end guard for the drag bug: the window used to derive
+    /// its new origin partly from its own current position, so it snapped back
+    /// towards where the drag began instead of following the cursor. That only
+    /// shows up once the window is actually moving, which is why it is exercised
+    /// here rather than only in the unit tests.
+    /// </para>
+    /// </summary>
+    private async Task CheckDragTrackingAsync(WidgetWindow window, IntPtr hwnd)
+    {
+        Section("7. dragging tracks the cursor");
+
+        // Pick a point inside the widget to grab, and find where the cursor
+        // would be in screen coordinates.
+        var grabClientPoint = new Point(30, 24);
+        var grabCursorScreen = window.PointToScreen(grabClientPoint);
+        var startPosition = window.Position;
+
+        var session = WidgetDragSession.Start(grabCursorScreen, startPosition);
+        Note($"grab offset     : {session.GrabOffset}");
+
+        Check("pressing the button does not move the widget",
+            session.PositionFor(grabCursorScreen) == startPosition,
+            $"{startPosition} vs {session.PositionFor(grabCursorScreen)}");
+
+        // Move the cursor, then hold it still and let the drag loop run.
+        var cursorNow = new PixelPoint(grabCursorScreen.X + 160, grabCursorScreen.Y + 110);
+        var expected = new PixelPoint(cursorNow.X - session.GrabOffset.X, cursorNow.Y - session.GrabOffset.Y);
+
+        var positions = new List<PixelPoint>();
+        for (var frame = 0; frame < 6; frame++)
+        {
+            // The platform delivers the cursor in the window's coordinates; turn
+            // that back into a screen position exactly as the handler does.
+            var pointerScreen = window.PointToScreen(window.PointToClient(cursorNow));
+            var target = session.PositionFor(pointerScreen);
+
+            if (window.Position != target)
+                window.Position = target;
+
+            await Delay(90);
+
+            positions.Add(DesktopDiagnostics.TryGetWindowRect(hwnd, out var rect)
+                ? new PixelPoint(rect.X, rect.Y)
+                : new PixelPoint(int.MinValue, int.MinValue));
+        }
+
+        Note($"cursor          : {cursorNow}");
+        Note($"window per frame: {string.Join(" ", positions)}");
+
+        Check("the widget ends up exactly under the cursor",
+            Math.Abs(positions[^1].X - expected.X) <= 2 && Math.Abs(positions[^1].Y - expected.Y) <= 2,
+            $"expected {expected}, got {positions[^1]}");
+
+        // The old implementation alternated between two positions here, which is
+        // what a user sees as the widget flashing back to its previous spot.
+        Check("a held cursor position stops moving the widget (no oscillation)",
+            positions.Skip(1).All(p => p == positions[1]),
+            $"frames: {string.Join(" ", positions)}");
+
+        // One pixel of cursor movement must be one pixel of widget movement, not
+        // the roughly half-speed tracking the feedback loop produced.
+        var onePixel = new PixelPoint(cursorNow.X + 1, cursorNow.Y + 1);
+        var pointerForOnePixel = window.PointToScreen(window.PointToClient(onePixel));
+        var nudged = session.PositionFor(pointerForOnePixel);
+
+        Check("one pixel of cursor movement moves the widget one pixel",
+            Math.Abs(nudged.X - (expected.X + 1)) <= 1 && Math.Abs(nudged.Y - (expected.Y + 1)) <= 1,
+            $"expected ({expected.X + 1},{expected.Y + 1}), got {nudged}");
+
+        // Put it back so the later checks start from a known place.
+        window.Position = startPosition;
+        await Delay(150);
+    }
+
     private static bool CanLoadSettingsWindow()
     {
         try
@@ -460,7 +540,7 @@ internal sealed class DesktopLayerSelfTest
     /// </summary>
     private async Task CheckWidgetShellAsync()
     {
-        Section("7. widget shell end to end");
+        Section("8. widget shell end to end");
 
         var directory = Path.Combine(
             Path.GetTempPath(), "deskkit-selftest-" + Guid.NewGuid().ToString("N"));

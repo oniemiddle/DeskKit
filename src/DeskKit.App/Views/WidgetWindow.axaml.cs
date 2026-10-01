@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using DeskKit.Core.Models;
 using DeskKit.Platform;
 
 namespace DeskKit.App.Views;
@@ -18,8 +19,7 @@ public partial class WidgetWindow : Window
     private readonly IDesktopLayerService _desktopLayer;
 
     private bool _dragging;
-    private Point _dragStartLocal;
-    private PixelPoint _dragStartWindow;
+    private WidgetDragSession _dragSession;
     private bool _resizing;
     private Point _resizeStartLocal;
     private Size _resizeStartSize;
@@ -120,8 +120,13 @@ public partial class WidgetWindow : Window
             return;
 
         _dragging = true;
-        _dragStartLocal = e.GetPosition(this);
-        _dragStartWindow = Position;
+
+        // Record where the cursor is relative to the window's origin, in screen
+        // pixels. The cursor is still inside the window at this instant, so the
+        // window has definitely not moved yet.
+        _dragSession = WidgetDragSession.Start(
+            this.PointToScreen(e.GetPosition(this)), Position);
+
         e.Pointer.Capture(CardBorder);
         e.Handled = true;
     }
@@ -131,15 +136,14 @@ public partial class WidgetWindow : Window
         if (!_dragging)
             return;
 
-        // PointToScreen returns absolute pixels, so the offset between the
-        // current and the press-time pointer position is the true pointer
-        // movement even though the window itself is moving under the cursor.
-        var current = this.PointToScreen(e.GetPosition(this));
-        var origin = this.PointToScreen(_dragStartLocal);
+        // Deliberately a function of the pointer alone. Deriving the new origin
+        // from the window's current position would feed the window's own
+        // movement back into the calculation, which makes the widget lurch back
+        // towards where the drag started instead of tracking the cursor.
+        var target = _dragSession.PositionFor(this.PointToScreen(e.GetPosition(this)));
 
-        Position = new PixelPoint(
-            _dragStartWindow.X + (current.X - origin.X),
-            _dragStartWindow.Y + (current.Y - origin.Y));
+        if (Position != target)
+            Position = target;
     }
 
     private void OnDragSurfacePointerReleased(object? sender, PointerReleasedEventArgs e)

@@ -93,6 +93,20 @@ Two deliberate consequences:
 - An intentional hide (the tray's "hide all widgets") suspends the hook, which
   is what `IDesktopLayerService.SetVisible` does.
 
+### Dragging
+
+Dragging is implemented by hand rather than through `BeginMoveDrag`, because the
+system move loop reorders the window and fights the "always at the bottom" rule.
+
+The arithmetic lives in `WidgetDragSession`, and its one rule is that the window
+position is a function of **the pointer's current screen position** and a grab
+offset captured when the button went down — never of the window's own current
+position. Deriving it from the live window position feeds the window's own
+movement back into the calculation, and `x ← pointer − x` oscillates: the widget
+lurches back towards where the drag started instead of following the cursor, and
+tracks at roughly half speed in between. `WidgetDragSessionTests` pins this down,
+including an executable record of the broken formula.
+
 ## Project layout
 
 ```

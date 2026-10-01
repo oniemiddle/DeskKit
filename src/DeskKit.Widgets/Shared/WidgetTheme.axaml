@@ -1,0 +1,31 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Widget content colours, per theme variant.
+         These used to be fixed light-on-dark, because a widget always painted its
+         own dark card. Now that the default background is nothing but the surface
+         material, the thing behind the content is Mica — which follows the same
+         light/dark preference the app does — so the content has to follow it too.
+         Light-on-light was previously latent as well: the light theme already
+         handed widgets a near-white card. -->
+
+    <ResourceDictionary.ThemeDictionaries>
+
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="WidgetPrimaryForeground">#F2FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSecondaryForeground">#A6FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetHoverSurface">#33FFFFFF</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSelectionSurface">#552563EB</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSelectionForeground">#FFFFFFFF</SolidColorBrush>
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="WidgetPrimaryForeground">#E61F2937</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSecondaryForeground">#991F2937</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetHoverSurface">#1F000000</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSelectionSurface">#452563EB</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetSelectionForeground">#FF1F2937</SolidColorBrush>
+        </ResourceDictionary>
+
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

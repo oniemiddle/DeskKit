@@ -1,17 +1,18 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Widgets keep a dark translucent surface in both light and dark themes:
-         a desktop widget sits on top of an arbitrary wallpaper, so a fixed,
-         high-contrast surface reads better than one that follows the app theme
-         (which drives the settings window). -->
+    <!-- Widget content colours come from WidgetTheme.axaml, which has one set per
+         theme variant. They used to be fixed light-on-dark, because a widget always
+         painted its own dark card; now the default background is only the surface
+         material, and the material follows the same light/dark preference the app
+         does, so the content has to follow it too. -->
 
     <Style Selector="TextBlock.widget-primary">
-        <Setter Property="Foreground" Value="#F2FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetPrimaryForeground}" />
     </Style>
 
     <Style Selector="TextBlock.widget-secondary">
-        <Setter Property="Foreground" Value="#A6FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetSecondaryForeground}" />
     </Style>
 
     <Style Selector="TextBox.plain">
@@ -19,10 +20,10 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="MinHeight" Value="0" />
-        <Setter Property="Foreground" Value="#F2FFFFFF" />
-        <Setter Property="CaretBrush" Value="#F2FFFFFF" />
-        <Setter Property="SelectionBrush" Value="#552563EB" />
-        <Setter Property="SelectionForegroundBrush" Value="#FFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetPrimaryForeground}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource WidgetPrimaryForeground}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource WidgetSelectionSurface}" />
+        <Setter Property="SelectionForegroundBrush" Value="{DynamicResource WidgetSelectionForeground}" />
     </Style>
 
     <Style Selector="TextBox.plain /template/ Border#PART_BorderElement">
@@ -40,6 +41,6 @@
     </Style>
 
     <Style Selector="Button.quick-launch:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#33FFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource WidgetHoverSurface}" />
     </Style>
 </Styles>

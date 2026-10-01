@@ -44,6 +44,29 @@ internal static class Win32
     internal const int WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
     internal const int WS_EX_LAYERED = 0x00080000;
 
+    // ---- DWM window attributes -------------------------------------------
+
+    /// <summary>Rounds the window's corners. Windows 11 and later.</summary>
+    internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+    /// <summary>
+    /// Names the system backdrop (Mica, Acrylic) the compositor draws behind the
+    /// window. Windows 11 22H2 and later; earlier builds return a failure.
+    /// </summary>
+    internal const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+
+    /// <summary>
+    /// The pre-22H2 way of asking for Mica, which can only turn it on and off.
+    /// Windows 11 21H2 only.
+    /// </summary>
+    internal const int DWMWA_MICA_EFFECT = 1029;
+
+    /// <summary><c>DWM_WINDOW_CORNER_PREFERENCE</c>: let the system decide.</summary>
+    internal const int DWMWCP_DEFAULT = 0;
+
+    /// <summary><c>DWM_WINDOW_CORNER_PREFERENCE</c>: round the corners.</summary>
+    internal const int DWMWCP_ROUND = 2;
+
     // ---- GDI / screen capture (self-test only) ----------------------------
 
     internal const int SRCCOPY = 0x00CC0020;

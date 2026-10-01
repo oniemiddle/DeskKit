@@ -4,7 +4,8 @@ A desktop widget platform for Windows, built on Avalonia.
 
 Widgets sit **on the desktop**: above the wallpaper, below every ordinary
 window, and they stay put when you press <kbd>Win+D</kbd> or click the taskbar's
-"Show desktop" button.
+"Show desktop" button. Widget windows use a **system surface material** where the
+platform has one — Mica on Windows 11 — so the desktop reads through them.
 
 Three widgets ship in the box:
 
@@ -22,7 +23,8 @@ layer is behind an interface so they can be added without touching the shell.
 
 ## Requirements
 
-- Windows 10 or 11 (x64 or ARM64)
+- Windows 10 or 11 (x64 or ARM64); the Mica surface needs Windows 11, and the
+  widgets fall back to a plain card without it
 - .NET 10 SDK to build
 
 ## Build and run
@@ -42,7 +44,7 @@ dotnet test DeskKit.slnx
 
 The unit tests cover the parts that are pure logic: configuration round-trips,
 corrupt-file recovery, placement clamping, widget settings, and every branch of
-the desktop-layer decision rules.
+the desktop-layer and window-material decision rules.
 
 ### Verifying the desktop behaviour
 
@@ -93,6 +95,77 @@ Two deliberate consequences:
 - An intentional hide (the tray's "hide all widgets") suspends the hook, which
   is what `IDesktopLayerService.SetVisible` does.
 
+### The window surface
+
+A widget has no window chrome, so the surface behind its content *is* the window.
+Where the platform can supply one, that surface is a **system material** rather
+than a flat colour the app has to repaint whenever the wallpaper changes: Mica on
+Windows 11, and the seam for a macOS equivalent, with Liquid Glass declared but
+not implemented yet.
+
+The choice travels through `IWindowMaterialService`, and the rules that decide
+what a platform can actually honour live in `MaterialPolicy` — pure, so they are
+unit-tested instead of discovered on one particular machine. An unsupported
+request falls back rather than being reported as granted, because a caller that
+believes it has a material lays the window out for one that will never appear:
+Mica needs Windows 11, and Acrylic as a distinct choice needs 22H2.
+
+**A material changes the layout, not just the colour.** It is painted by the
+window across the window's whole rectangle, so a card inset from that rectangle
+would sit on a visible plate of material — the widget would look like a card on a
+tray. With a material the card therefore fills the window (`CardMargin` 0) and
+hands the rounded corners and the drop shadow to the platform, since neither the
+inset nor the card's own shadow has anything left to do. Without one, the inset
+and the card-drawn shadow come back.
+
+The card also stops painting its own surface over a material
+(`ThemeService.CardBrushFor` returns nothing). How much of the material survives is
+exactly `1 - alpha`, so **any** tint is a direct subtraction from the surface the
+material exists to provide. That is not a hypothetical: the first attempt painted
+the card at 65%, which keeps only 34% of the material, and the result was a
+material that was demonstrably on and still looked like a flat colour. The default
+background is now the material alone, and `--selftest` asserts the card's alpha is
+zero so it cannot drift back.
+
+Because the material *is* the background, the widget content sits directly on it.
+The content colours were fixed light-on-dark, which stops working the moment the
+surface follows the theme — a light theme gives a light material, so light content
+becomes light-on-light. They now come from `WidgetTheme.axaml`, which carries one
+set per theme variant, and `--selftest` checks both that the keys resolve and that
+they are the right way round (light content in the dark theme, dark in the light
+one). That also fixes a latent bug in the no-material path, which was already
+handing widgets a near-white card in a light theme.
+
+What a material can and cannot do is worth being clear about. Mica samples the
+**wallpaper**, and a widget on the desktop layer has nothing but wallpaper behind
+it, so the surface can only ever be as interesting as the wallpaper is: over a flat
+colour it will read as a flat colour no matter how transparent the card is. Acrylic
+samples whatever is behind the window, which for a bottom-most widget is the same
+wallpaper, so it is not a way around that either — it is a one-line change
+(`WindowsWindowMaterialService.Default`) and it is a stronger effect, but not a
+different one.
+
+Two things about this are worth recording, because both are counter-intuitive:
+
+- **A transparent window can still show Mica.** Widget windows are rendered
+  through `WS_EX_NOREDIRECTIONBITMAP` and DirectComposition, and the obvious
+  assumption is that this leaves no surface for the compositor to draw a backdrop
+  into. Measured on build 26200 it does not: a borderless, contentless window with
+  that style set shows Mica, and an otherwise identical transparent window shows
+  nothing at all. The material is therefore requested through Avalonia's
+  transparency hint, which is what makes the framework create the window in a way
+  the compositor can draw behind.
+- **Mica Alt currently renders the same as Mica.** It is a real backdrop type and
+  the request is honoured, but on a borderless window that carries no frame the
+  two are pixel-for-pixel identical. The option exists because the request is
+  genuine, not because it looks different.
+
+`--selftest` covers this: it reports the material the machine resolves to, and
+checks that the card fills the window, that the corners and the shadow moved to
+the platform, that the default background is the material and nothing else, that
+the widget content colours are the right way round for the theme, and that a
+backdrop was really asked for and is live on the window.
+
 ### Moving, resizing and snapping
 
 #### The drag strip
@@ -138,10 +211,10 @@ without that limit a widget could be pulled into alignment with another one on
 the far side of the desktop purely because they happened to share an edge, which
 reads as global grid alignment rather than as two widgets placed together.
 
-Snapping is measured between **cards, not windows**. The window carries a
+Snapping is measured between **cards, not windows**. The window normally carries a
 transparent margin so the card's drop shadow has room, and measuring that instead
 would leave two snapped widgets 32px apart on screen while the code believed the
-gap was 8.
+gap was 8. With a surface material that margin is zero, and the two coincide.
 
 #### The magnetism glow
 
@@ -172,7 +245,8 @@ It is drawn by `WidgetGlowLayer`, a hand-drawn decoration layer rather than a
 set of borders, because the shape is not expressible with borders: one edge can
 be lit in several stretches, several edges can be lit at once, and each stretch
 needs a gradient that fades away from the shared edge while also softening at its
-two ends. A border carries one brush, and one brush cannot fade along two axes.
+two ends, plus a brighter band on the outermost pixels. A border carries one
+brush, and one brush cannot fade along two axes.
 
 The layer lives inside the card, is never hit-testable and takes no layout space.
 
@@ -203,10 +277,35 @@ rather than as light, so the intensity is shaped too:
   a wedge; sampling an ease-out curve gives a decay of roughly 153 → 99 → 54 → 19
   → 0 over the fade, instead of 255 → 191 → 128 → 64 → 0.
 
-The card is inset inside its window by `WidgetWindow.GlowMargin`. Anything a
-window paints outside itself is clipped, so the window has to be larger than the
-card for the card's own drop shadow to be visible at all. Stored placements
-describe the visible card, so the margin never leaks into the saved layout.
+On top of that falloff, the outermost pixels of the edge carry a **specular
+band** (`EdgeHighlightWidth` 1.5 DIP, `EdgeHighlightOpacity` 0.75, colour
+`HighlightColor`) standing in for the reflection a lit edge shows. Without it the
+brightest point on the card is still a tint of the accent colour, which reads as a
+tinted panel rather than as light arriving from somewhere; the band makes the edge
+itself the brightest thing. It is painted after the glow, so it lifts those pixels
+rather than replacing them, it shares the along-edge mask so its ends soften with
+the light it sits on, and it is kept to a couple of DIPs because a reflection is a
+line, not a region. Measured across the edge it reads roughly 95 → 205 luma at the
+outermost pixel and is gone again by 1.5 DIP.
+
+The band also has to **turn the corners**. A band that hugs a line at a fixed
+distance from the edge falls outside the card as soon as the outline starts to
+curve — on a 14 DIP radius it is outside for the first 8 DIP of the turn and gets
+clipped away, so the reflection visibly stops short of the corner. So the straight
+part is cut back to the tangent point and a corner pass continues from there,
+rebuilding the band as arcs of the card's own corner circles. A gradient cannot
+bend, so a corner is drawn as `CornerBands` concentric sub-bands, each taking the
+intensity the gradient would have had partway across it; four of them over 1.5 DIP
+puts every step well under a pixel. A corner reached from both edges at once — a
+diagonal placement — is drawn once, not twice, or it would come out brighter than
+the edge leading into it.
+
+The card is inset inside its window by `WidgetWindow.GlowMargin` — or not inset at
+all when the window carries a surface material, in which case the card and the
+window are the same rectangle. Without a material, anything a window paints
+outside itself is clipped, so the window has to be larger than the card for the
+card's own drop shadow to be visible at all. Stored placements describe the
+visible card, so the margin never leaks into the saved layout either way.
 
 #### Dragging
 
@@ -250,7 +349,7 @@ pushing back the edge being dragged rather than by moving the anchored one.
 ```
 src/
   DeskKit.Core/        models, configuration, widget contract (no platform code)
-  DeskKit.Platform/    OS interop: window pinning, shell icons, autostart
+  DeskKit.Platform/    OS interop: window pinning, surface materials, shell icons, autostart
   DeskKit.Widgets/     the built-in widgets
   DeskKit.App/         Avalonia shell: window host, tray, settings window
 tests/

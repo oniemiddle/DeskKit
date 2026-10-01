@@ -67,6 +67,35 @@ public static class DesktopDiagnostics
     public static bool UsesNoRedirectionBitmap(IntPtr hwnd) =>
         (GetExtendedStyle(hwnd) & Win32.WS_EX_NOREDIRECTIONBITMAP) != 0;
 
+    /// <summary>
+    /// The system backdrop the compositor has been asked to draw behind the window,
+    /// read back from the DWM, or <see cref="BackdropNone"/> when it could not be
+    /// read. <c>DWMSBT_AUTO</c> is reported as <see cref="BackdropAuto"/>: it means
+    /// nothing was named, which is how a window whose backdrop came from a
+    /// transparency hint rather than from an explicit request reports itself.
+    /// </summary>
+    public static int GetSystemBackdropType(IntPtr hwnd)
+    {
+        // Only Windows 11 22H2 and later understand the attribute at all; older
+        // builds return a failure and the caller sees "none".
+        return NativeMethods.DwmGetWindowAttribute(
+            hwnd, Win32.DWMWA_SYSTEMBACKDROP_TYPE, out var backdrop, sizeof(int)) == 0
+            ? backdrop
+            : BackdropNone;
+    }
+
+    /// <summary>No backdrop was named; the compositor decides.</summary>
+    public const int BackdropAuto = 0;
+
+    /// <summary>No backdrop.</summary>
+    public const int BackdropNone = 1;
+
+    /// <summary>Mica.</summary>
+    public const int BackdropMainWindow = 2;
+
+    /// <summary>Acrylic.</summary>
+    public const int BackdropTransientWindow = 3;
+
     /// <summary>Delivers a <c>WM_SYSCOMMAND</c> to the window, the way the shell does.</summary>
     public static void SendSysCommand(IntPtr hwnd, long command) =>
         NativeMethods.SendMessage(hwnd, Win32.WM_SYSCOMMAND, new IntPtr(command), IntPtr.Zero);

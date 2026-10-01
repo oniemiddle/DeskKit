@@ -1,9 +1,12 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
@@ -163,7 +166,307 @@ internal sealed class DesktopLayerSelfTest
         await CheckResizeAsync(window, hwnd);
         await CheckWidgetShellAsync();
         await CheckDragHandleChromeAsync();
+        CheckGlowPixels();
+        await CheckWindowMaterialAsync();
     }
+
+    /// <summary>
+    /// Verifies that a widget window can be given a platform surface material, and
+    /// that the layout agrees with it.
+    /// <para>
+    /// A material fills the window's whole rectangle, so the card has to fill the
+    /// window too — otherwise the widget would be a card sitting on a visible plate
+    /// of material. The card also has to let the material through, and the rounded
+    /// corners and the shadow have to move to the platform, since the card is no
+    /// longer inset from anything.
+    /// </para>
+    /// </summary>
+    private async Task CheckWindowMaterialAsync()
+    {
+        Section("13. window material");
+
+        var materials = new WindowsWindowMaterialService();
+        var resolved = materials.Resolve(materials.Default);
+
+        Note($"requested       : {materials.Default}");
+        Note($"resolved        : {resolved}");
+        Note($"os build        : {Environment.OSVersion.Version.Build}");
+        Note($"supported       : {materials.IsSupported}");
+
+        Check("a material is reported as supported on a build that has one",
+            materials.IsSupported == (resolved != WidgetMaterial.None),
+            $"resolved={resolved} supported={materials.IsSupported}");
+
+        // The no-material path is exercised on every machine, not just ones that
+        // lack a material: naming a transparency level while applying "no material"
+        // would take away the per-pixel alpha the classic window depends on and put
+        // a visible rectangle around the card.
+        var classic = new WidgetWindow(new WindowsDesktopLayerService(), materials, WidgetMaterial.None);
+        var classicHint = string.Join('|', classic.TransparencyLevelHint);
+
+        Check("applying no material leaves the transparent window alone",
+            classic.TransparencyLevelHint.Contains(WindowTransparencyLevel.Transparent),
+            $"hint={classicHint}");
+
+        Check("no material keeps the card inset and shadowed the classic way",
+            classic.CardMargin != default && classic.CardShadow.Count > 0,
+            $"margin={classic.CardMargin} shadows={classic.CardShadow.Count}");
+
+        if (resolved == WidgetMaterial.None)
+        {
+            Check("an unsupported material falls back rather than pretending", true,
+                "no material on this build, so the classic window is correct");
+            return;
+        }
+
+        var window = new WidgetWindow(new WindowsDesktopLayerService(), materials, resolved)
+        {
+            CardBackground = ThemeService.CardBrushFor(resolved),
+            WidgetContent = new TextBlock { Text = "material" },
+            Width = 240,
+            Height = 120,
+            ShowInTaskbar = false,
+            Position = new PixelPoint(80, 560),
+        };
+
+        window.Show();
+        await Delay(1200);
+
+        var handle = window.Handle;
+
+        // The window's own rectangle, inset by the margin, is what the card should
+        // cover. With a material that margin is nothing.
+        var card = window.CardBounds;
+        Note($"window          : {window.Bounds.Width}x{window.Bounds.Height}");
+        Note($"card            : {card}");
+
+        Check("the card fills the window when the window is the surface",
+            window.CardMargin == default
+            && Math.Abs(card.Width - window.Bounds.Width) < 0.5
+            && Math.Abs(card.Height - window.Bounds.Height) < 0.5,
+            $"margin={window.CardMargin} card={card.Width}x{card.Height} window={window.Bounds.Width}x{window.Bounds.Height}");
+
+        Check("the card hands its rounded corners to the platform",
+            window.CardCornerRadius == default,
+            window.CardCornerRadius.ToString());
+
+        Check("the card hands its drop shadow to the platform",
+            window.CardShadow.Count == 0,
+            $"shadows={window.CardShadow.Count}");
+
+        // The card must not dilute the material at all: whatever is painted over it
+        // is subtracted from the surface the material is there to provide, and a
+        // card that is merely "translucent" still washes it out.
+        var cardAlpha = window.CardBackground switch
+        {
+            ISolidColorBrush solid => solid.Color.A,
+            _ => (byte)255,
+        };
+
+        Check("the default background is the material and nothing else",
+            cardAlpha == 0,
+            $"card alpha={cardAlpha}/255, so {(255 - cardAlpha) / 255.0:P0} of the material survives");
+
+        // The compositor has to have been asked for a backdrop. DWMSBT_AUTO counts:
+        // that is what a window whose backdrop came from the transparency hint
+        // reports, and it is what makes the hint path work.
+        var backdrop = DesktopDiagnostics.GetSystemBackdropType(handle);
+        Note($"backdrop        : {backdrop}");
+        Note($"no redirection  : {DesktopDiagnostics.UsesNoRedirectionBitmap(handle)}");
+
+        Check("the compositor was asked to draw a backdrop behind the widget",
+            backdrop != DesktopDiagnostics.BackdropNone,
+            $"backdrop={backdrop}");
+
+        Check("the material is live on the real window",
+            materials.IsActive(window),
+            "read back from the DWM");
+
+        // The material must not cost the window its pinning: the card being the
+        // window changes the surface, not the z-order rules.
+        Check("a material window is still not on the taskbar",
+            !DesktopDiagnostics.HasAppWindowStyle(handle),
+            $"exstyle=0x{DesktopDiagnostics.GetExtendedStyle(handle):X}");
+
+        window.Close();
+        await Delay(200);
+
+        CheckWidgetForegroundThemes();
+    }
+
+    /// <summary>
+    /// Verifies that widget content is legible against a bare material.
+    /// <para>
+    /// Making the material the whole background moved the widget content from a
+    /// dark card onto Mica, which is light in a light theme. Content that was
+    /// light-on-dark would then be light-on-light. These resources are looked up by
+    /// key at runtime, so a missing one does not fail loudly — it renders as
+    /// nothing — which is why the lookup itself is checked rather than assumed.
+    /// </para>
+    /// </summary>
+    private void CheckWidgetForegroundThemes()
+    {
+        var application = Application.Current;
+        if (application is null)
+        {
+            Check("the widget foreground resources resolve", false, "no application");
+            return;
+        }
+
+        var dark = ResolveForeground(application, ThemeVariant.Dark);
+        var light = ResolveForeground(application, ThemeVariant.Light);
+
+        Check("the widget foreground resources resolve in both themes",
+            dark is not null && light is not null,
+            $"dark={dark} light={light}");
+
+        if (dark is null || light is null)
+            return;
+
+        Note($"widget foreground: dark {dark} light {light}");
+
+        // A material is light in a light theme and dark in a dark one, so the
+        // content has to be the opposite of its own theme variant. Getting this
+        // backwards is exactly the invisible-text bug this guards against.
+        Check("widget content is light in the dark theme",
+            Luminance(dark.Value) > 0.5,
+            $"luminance={Luminance(dark.Value):F2}");
+
+        Check("widget content is dark in the light theme",
+            Luminance(light.Value) < 0.5,
+            $"luminance={Luminance(light.Value):F2}");
+    }
+
+    private static Color? ResolveForeground(Application application, ThemeVariant variant) =>
+        application.TryFindResource("WidgetPrimaryForeground", variant, out var value)
+        && value is ISolidColorBrush brush
+            ? brush.Color
+            : null;
+
+    private static double Luminance(Color colour) =>
+        ((0.2126 * colour.R) + (0.7152 * colour.G) + (0.0722 * colour.B)) / 255.0;
+
+    /// <summary>
+    /// Rasterises the glow layer offscreen and reads its pixels back.
+    /// <para>
+    /// Everything else about the glow is checked through its exposed geometry,
+    /// which cannot tell whether the drawing actually lands on the card. The
+    /// corner band in particular is a shape built from sampled arcs, and a
+    /// plausible-looking mistake — the wrong sweep, an arc pointing the wrong way —
+    /// still builds and still passes every property check. Rendering it and
+    /// sampling the corner is the only way to see that the reflection really does
+    /// follow the curve.
+    /// </para>
+    /// </summary>
+    private void CheckGlowPixels()
+    {
+        Section("12. glow pixels");
+
+        const int width = 260;
+        const int height = 130;
+        const int radius = 14;
+
+        // A full-height stretch on the right edge, so the light reaches both
+        // corners and they are the only thing being tested.
+        var lit = RenderGlow(width, height, radius, [new WidgetGlowSegment(WidgetEdge.Right, 0, 1)], highlight: true);
+        var glowOnly = RenderGlow(width, height, radius, [new WidgetGlowSegment(WidgetEdge.Right, 0, 1)], highlight: false);
+
+        // Just inside the top-right corner's arc, halfway between the edge and the
+        // inner side of the band. With only the straight band this pixel is left
+        // dark, because the band runs outside the card once the outline curves.
+        var corner = (X: 255, Y: 4);
+        var cornerCurve = Alpha(lit, width, corner.X, corner.Y);
+        var cornerCurveWithout = Alpha(glowOnly, width, corner.X, corner.Y);
+
+        Check("the reflection follows the card's rounded corner",
+            cornerCurve > cornerCurveWithout + 20,
+            $"at ({corner.X},{corner.Y}) alpha {cornerCurveWithout} without the band, {cornerCurve} with it");
+
+        // The same band, on the straight part of the edge.
+        var straight = (X: 259, Y: 65);
+        Check("the reflection is still on the straight edge",
+            Alpha(lit, width, straight.X, straight.Y) > Alpha(glowOnly, width, straight.X, straight.Y) + 20,
+            $"at ({straight.X},{straight.Y}) alpha {Alpha(glowOnly, width, straight.X, straight.Y)} -> {Alpha(lit, width, straight.X, straight.Y)}");
+
+        // Two pixels that sit inside the layer's rectangle but outside the card's
+        // rounded outline. Nothing may be painted there, or the band would be a
+        // rectangle again rather than something that follows the curve.
+        var outsideCorner = (X: 259, Y: 1);
+        Check("nothing is painted outside the card's rounded corner",
+            Alpha(lit, width, outsideCorner.X, outsideCorner.Y) == 0,
+            $"at ({outsideCorner.X},{outsideCorner.Y}) alpha {Alpha(lit, width, outsideCorner.X, outsideCorner.Y)}");
+
+        var outsideFlat = (X: 0, Y: 65);
+        Check("nothing is painted on the edge facing away from the light",
+            Alpha(lit, width, outsideFlat.X, outsideFlat.Y) == 0,
+            $"at ({outsideFlat.X},{outsideFlat.Y}) alpha {Alpha(lit, width, outsideFlat.X, outsideFlat.Y)}");
+
+        // The corner band is drawn once even though a diagonal placement reaches
+        // it from two edges at once. Both points are on the same edge of the same
+        // render, so they differ only in whether a corner is involved; if the
+        // corner were drawn a second time it would come out noticeably brighter
+        // than the straight part beside it.
+        var diagonal = RenderGlow(
+            width, height, radius,
+            [
+                new WidgetGlowSegment(WidgetEdge.Right, 0.5, 0.5),
+                new WidgetGlowSegment(WidgetEdge.Bottom, 0.5, 0.5),
+            ],
+            highlight: true);
+
+        var cornerShared = (X: 255, Y: 125);
+        var straightBeside = (X: 259, Y: 100);
+        var shared = Alpha(diagonal, width, cornerShared.X, cornerShared.Y);
+        var single = Alpha(diagonal, width, straightBeside.X, straightBeside.Y);
+
+        Check("a corner reached from two edges is lit once, not twice",
+            shared > 0 && shared <= single + 12,
+            $"corner ({cornerShared.X},{cornerShared.Y})={shared} vs straight ({straightBeside.X},{straightBeside.Y})={single}");
+    }
+
+    /// <summary>Rasterises the glow layer on a transparent field.</summary>
+    private static byte[] RenderGlow(
+        int width,
+        int height,
+        int radius,
+        IReadOnlyList<WidgetGlowSegment> segments,
+        bool highlight)
+    {
+        var layer = new WidgetGlowLayer
+        {
+            Width = width,
+            Height = height,
+            CardCornerRadius = radius,
+            EdgeHighlightOpacity = highlight ? WidgetGlowLayer.DefaultEdgeHighlightOpacity : 0,
+            Segments = segments,
+        };
+
+        layer.Measure(new Size(width, height));
+        layer.Arrange(new Rect(0, 0, width, height));
+
+        using var bitmap = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
+        bitmap.Render(layer);
+
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        var buffer = Marshal.AllocHGlobal(pixels.Length);
+
+        try
+        {
+            bitmap.CopyPixels(new PixelRect(0, 0, width, height), buffer, pixels.Length, stride);
+            Marshal.Copy(buffer, pixels, 0, pixels.Length);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+
+        return pixels;
+    }
+
+    /// <summary>Alpha of a pixel in a BGRA capture.</summary>
+    private static byte Alpha(byte[] pixels, int width, int x, int y) =>
+        pixels[(((y * width) + x) * 4) + 3];
 
     private WidgetWindow CreateProbeWindow(IDesktopLayerService layer)
     {
@@ -410,10 +713,11 @@ internal sealed class DesktopLayerSelfTest
 
         layer.SetVisible(_window!, true);
         await Delay(300);
+        var offenders = CountOffendersBelow(hwnd);
         Check(
             "showing again is visible and re-pinned to the bottom",
-            DesktopDiagnostics.IsVisible(hwnd) && CountOffendersBelow(hwnd) == 0,
-            $"visible={DesktopDiagnostics.IsVisible(hwnd)}");
+            DesktopDiagnostics.IsVisible(hwnd) && offenders == 0,
+            $"visible={DesktopDiagnostics.IsVisible(hwnd)} offendersBelow={offenders}");
     }
 
     private async Task CheckMoveAndResizeAsync(
@@ -968,6 +1272,27 @@ internal sealed class DesktopLayerSelfTest
                 Check($"[{name}] the glow falls off on a curve, not a straight ramp",
                     window.GlowFalloffExponent > 1,
                     $"exponent={window.GlowFalloffExponent}");
+
+                // A lit edge shows a specular reflection: the outermost pixels go
+                // brighter than the light that reached them, and the falloff
+                // happens just behind. Without it the brightest thing on the card
+                // is still a tint of the accent colour.
+                Check($"[{name}] the outermost edge carries a brighter specular band",
+                    window.GlowHighlightAlpha > window.GlowEdgeAlpha,
+                    $"highlight={window.GlowHighlightAlpha}/255 glow={window.GlowEdgeAlpha}/255");
+
+                Check($"[{name}] the specular band is a line, not a second glow",
+                    window.GlowHighlightWidth is > 0 and <= 3
+                    && window.GlowHighlightWidth < window.GlowVerticalFadeLength
+                    && window.GlowHighlightWidth < window.GlowHorizontalFadeLength,
+                    $"band={window.GlowHighlightWidth} DIP, fades={window.GlowVerticalFadeLength}/{window.GlowHorizontalFadeLength}");
+
+                Check($"[{name}] the specular band is a light tint, not a hard white stroke",
+                    window.GlowHighlightColor.R >= 0xE0
+                    && window.GlowHighlightColor.G >= 0xE0
+                    && window.GlowHighlightColor.B >= 0xE0
+                    && window.GlowHighlightColor != Colors.White,
+                    window.GlowHighlightColor.ToString());
 
                 // Several stretches, on several edges, at once.
                 window.SetSnapHighlight(

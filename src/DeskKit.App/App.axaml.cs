@@ -85,6 +85,11 @@ public partial class App : Application
                 ? new WindowsDesktopLayerService()
                 : new NullDesktopLayerService());
 
+        services.AddSingleton<IWindowMaterialService>(_ =>
+            OperatingSystem.IsWindows()
+                ? new WindowsWindowMaterialService()
+                : new NullWindowMaterialService());
+
         services.AddSingleton<IAutoStartService>(_ =>
             OperatingSystem.IsWindows()
                 ? new WindowsAutoStartService()

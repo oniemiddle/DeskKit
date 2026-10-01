@@ -18,8 +18,8 @@ public partial class WidgetWindow : Window
 {
     /// <summary>
     /// Transparent inset between the window edge and the card, in logical
-    /// pixels. It exists so the magnetism glow has somewhere to spread: a glow
-    /// drawn outside the card would otherwise be clipped by the window.
+    /// pixels. It exists so the card's own drop shadow has somewhere to render: a
+    /// shadow drawn outside the card would otherwise be clipped by the window.
     /// </summary>
     public const double GlowMargin = 16;
 
@@ -32,6 +32,7 @@ public partial class WidgetWindow : Window
         new SolidColorBrush(Color.Parse("#59FFFFFF"));
 
     private readonly IDesktopLayerService _desktopLayer;
+    private readonly IWindowMaterialService _materials;
 
     private bool _dragging;
     private WidgetDragSession _dragSession;
@@ -40,15 +41,26 @@ public partial class WidgetWindow : Window
     private WidgetEdges _resizingEdges = WidgetEdges.None;
 
     public WidgetWindow()
-        : this(new NullDesktopLayerService())
+        : this(new NullDesktopLayerService(), new NullWindowMaterialService(), WidgetMaterial.None)
     {
     }
 
     public WidgetWindow(IDesktopLayerService desktopLayer)
+        : this(desktopLayer, new NullWindowMaterialService(), WidgetMaterial.None)
+    {
+    }
+
+    public WidgetWindow(
+        IDesktopLayerService desktopLayer,
+        IWindowMaterialService materials,
+        WidgetMaterial material)
     {
         _desktopLayer = desktopLayer;
+        _materials = materials;
+        Material = material;
 
         InitializeComponent();
+        ApplyMaterial(material);
 
         CardBorder.PointerPressed += OnDragSurfacePointerPressed;
         CardBorder.PointerMoved += OnDragSurfacePointerMoved;
@@ -59,6 +71,42 @@ public partial class WidgetWindow : Window
         // under the cursor mid-drag.
         CardBorder.PointerEntered += (_, _) => SetDragAffordance(hovered: true, _dragging);
         CardBorder.PointerExited += (_, _) => SetDragAffordance(hovered: false, _dragging);
+    }
+
+    /// <summary>
+    /// The surface material this window carries, already resolved to something the
+    /// platform can render.
+    /// </summary>
+    public WidgetMaterial Material { get; }
+
+    /// <summary>
+    /// The transparent inset a widget window keeps around its card when given the
+    /// material. A material is painted by the window across its whole rectangle,
+    /// so an inset card would sit on a visible plate of it — and the platform,
+    /// not the card, draws the rounded corners and the shadow in that mode.
+    /// </summary>
+    public static double MarginFor(WidgetMaterial material) =>
+        MaterialPolicy.FillsWindow(material) ? 0 : GlowMargin;
+
+    /// <summary>
+    /// Puts the window into the mode its material implies. Called from the
+    /// constructor because the surface has to be chosen before the window is
+    /// created on the platform, and the layout has to agree with it.
+    /// </summary>
+    private void ApplyMaterial(WidgetMaterial material)
+    {
+        CardMargin = new Thickness(MarginFor(material));
+        _materials.Prepare(this, material);
+
+        if (!MaterialPolicy.FillsWindow(material))
+            return;
+
+        // The window is the surface now. A card shadow painted inside an opaque
+        // window would darken the material rather than fall on anything, and a
+        // rounded card inside a rectangular one would show the material as corner
+        // wedges, so both belong to the platform.
+        CardShadow = default;
+        CardCornerRadius = default;
     }
 
     /// <summary>True when this window can take keyboard focus (sticky notes need it).</summary>
@@ -130,22 +178,32 @@ public partial class WidgetWindow : Window
     public Rect ContentBounds => ToWindowBounds(ContentHost);
 
     /// <summary>
-    /// The visible card, in window coordinates. This is the window inset by
-    /// <see cref="GlowMargin"/>, and it is what snapping measures, so that two
-    /// widgets snapped together show the configured gap between their visible
-    /// edges rather than between their transparent windows.
+    /// The visible card, in window coordinates. This is the window inset by the
+    /// surface margin, and it is what snapping measures, so that two widgets
+    /// snapped together show the configured gap between their visible edges rather
+    /// than between their windows. With a material the inset is zero, and the card
+    /// and the window are the same rectangle.
     /// </summary>
     public Rect CardBounds => ToWindowBounds(CardBorder);
 
+    /// <summary>Shadows cast by the card. Cleared when the platform draws them.</summary>
+    public BoxShadows CardShadow
+    {
+        get => CardBorder.BoxShadow;
+        set => CardBorder.BoxShadow = value;
+    }
+
     /// <summary>Screen size of a window sized to hold a card of the given size.</summary>
-    public static Size WindowSizeForCard(double cardWidth, double cardHeight) =>
-        new(cardWidth + (GlowMargin * 2), cardHeight + (GlowMargin * 2));
+    public static Size WindowSizeForCard(
+        double cardWidth, double cardHeight, double margin = GlowMargin) =>
+        new(cardWidth + (margin * 2), cardHeight + (margin * 2));
 
     /// <summary>Card size held by a window of the given size.</summary>
-    public static Size CardSizeForWindow(double windowWidth, double windowHeight) =>
+    public static Size CardSizeForWindow(
+        double windowWidth, double windowHeight, double margin = GlowMargin) =>
         new(
-            Math.Max(1, windowWidth - (GlowMargin * 2)),
-            Math.Max(1, windowHeight - (GlowMargin * 2)));
+            Math.Max(1, windowWidth - (margin * 2)),
+            Math.Max(1, windowHeight - (margin * 2)));
 
     /// <summary>
     /// Background of the drag strip. It is an overlay lying on top of the widget
@@ -200,6 +258,15 @@ public partial class WidgetWindow : Window
 
     /// <summary>Shape of the falloff away from the shared edge.</summary>
     public double GlowFalloffExponent => SnapGlow.FalloffExponent;
+
+    /// <summary>Width of the specular band on the outermost edge, in DIPs.</summary>
+    public double GlowHighlightWidth => SnapGlow.EdgeHighlightWidth;
+
+    /// <summary>Alpha of the specular band where it is brightest.</summary>
+    public byte GlowHighlightAlpha => SnapGlow.HighlightAlpha;
+
+    /// <summary>Colour of the specular band.</summary>
+    public Color GlowHighlightColor => SnapGlow.HighlightColor;
 
     /// <summary>
     /// False means the glow cannot swallow pointer input, which is what lets it

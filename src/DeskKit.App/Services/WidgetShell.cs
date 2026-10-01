@@ -35,8 +35,15 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly IAutoStartService _autoStart;
     private readonly TickService _tickService;
     private readonly ThemeService _themeService;
+    private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly List<WidgetRuntime> _widgets = [];
+
+    /// <summary>The material every widget window carries, already resolved.</summary>
+    private readonly WidgetMaterial _material;
+
+    /// <summary>Transparent inset each window keeps around its card for that material.</summary>
+    private readonly double _surfaceMargin;
 
     private WindowIcon? _appIcon;
     private TrayIcon? _trayIcon;
@@ -51,6 +58,27 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         TickService tickService,
         ThemeService themeService,
         ILogger<WidgetShell> logger)
+        : this(
+            configStore,
+            registry,
+            desktopLayer,
+            autoStart,
+            tickService,
+            themeService,
+            new NullWindowMaterialService(),
+            logger)
+    {
+    }
+
+    public WidgetShell(
+        ConfigStore configStore,
+        WidgetRegistry registry,
+        IDesktopLayerService desktopLayer,
+        IAutoStartService autoStart,
+        TickService tickService,
+        ThemeService themeService,
+        IWindowMaterialService materials,
+        ILogger<WidgetShell> logger)
     {
         _configStore = configStore;
         _registry = registry;
@@ -58,7 +86,14 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _autoStart = autoStart;
         _tickService = tickService;
         _themeService = themeService;
+        _materials = materials;
         _logger = logger;
+
+        // Resolved once, at construction, because the answer changes the layout of
+        // every window and every snap measurement. It also has to be known before
+        // the first window is created, so it cannot wait for the config to load.
+        _material = materials.Resolve(materials.Default);
+        _surfaceMargin = WidgetWindow.MarginFor(_material);
     }
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
@@ -209,17 +244,17 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             return null;
         }
 
-        var window = new WidgetWindow(_desktopLayer)
+        var window = new WidgetWindow(_desktopLayer, _materials, _material)
         {
             Title = descriptor.DisplayName,
             AcceptsKeyboardFocus = !descriptor.PreventActivation,
             Icon = GetAppIcon(),
-            CardBackground = ThemeService.CardBrush,
+            CardBackground = ThemeService.CardBrushFor(_material),
             WidgetContent = viewModel.CreateView(),
             Width = WindowSizeForPlacement(placement, descriptor).Width,
             Height = WindowSizeForPlacement(placement, descriptor).Height,
-            MinWidth = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight).Width,
-            MinHeight = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight).Height,
+            MinWidth = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Width,
+            MinHeight = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Height,
             Position = new PixelPoint(placement.X, placement.Y),
         };
 
@@ -311,10 +346,11 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         var window = runtime.Window;
 
         // Stored sizes describe the visible card, not the window, so the
-        // transparent glow margin never leaks into the persisted layout.
+        // transparent margin never leaks into the persisted layout.
         var card = WidgetWindow.CardSizeForWindow(
             window.Width > 0 ? window.Width : window.Bounds.Width,
-            window.Height > 0 ? window.Height : window.Bounds.Height);
+            window.Height > 0 ? window.Height : window.Bounds.Height,
+            _surfaceMargin);
 
         runtime.Placement = runtime.Placement with
         {
@@ -331,11 +367,11 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         ScheduleSave();
     }
 
-    private static Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
+    private Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
     {
         var cardWidth = placement.Width > 0 ? placement.Width : descriptor.DefaultWidth;
         var cardHeight = placement.Height > 0 ? placement.Height : descriptor.DefaultHeight;
-        return WidgetWindow.WindowSizeForCard(cardWidth, cardHeight);
+        return WidgetWindow.WindowSizeForCard(cardWidth, cardHeight, _surfaceMargin);
     }
 
     // ---- Magnetic snapping ----------------------------------------------
@@ -360,11 +396,12 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             return proposed;
         }
 
-        // The card sits GlowMargin inside the window, so the same offset has to
-        // come off every rectangle before comparing and go back on afterwards.
+        // The card sits inside the window by the surface margin, so the same
+        // offset has to come off every rectangle before comparing and go back on
+        // afterwards.
         var offset = new PixelVector(
-            (int)Math.Round(WidgetWindow.GlowMargin * WindowScaling(moving)),
-            (int)Math.Round(WidgetWindow.GlowMargin * WindowScaling(moving)));
+            (int)Math.Round(_surfaceMargin * WindowScaling(moving)),
+            (int)Math.Round(_surfaceMargin * WindowScaling(moving)));
 
         var candidates = new List<PixelRect>(_widgets.Count);
         var owners = new List<WidgetRuntime>(_widgets.Count);
@@ -550,7 +587,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             _trayIcon.IsVisible = showTrayIcon;
 
         foreach (var widget in _widgets)
-            widget.Window.CardBackground = ThemeService.CardBrush;
+            widget.Window.CardBackground = ThemeService.CardBrushFor(_material);
 
         ScheduleSave();
         StateChanged?.Invoke(this, EventArgs.Empty);

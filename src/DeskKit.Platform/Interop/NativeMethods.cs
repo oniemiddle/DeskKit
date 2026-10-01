@@ -131,6 +131,22 @@ internal static class NativeMethods
         IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyHeight,
         uint istepIfAniCur, IntPtr hbrFlickerFreeDraw, uint diFlags);
 
+    // ---- Desktop Window Manager ------------------------------------------
+
+    /// <summary>
+    /// Writes a window attribute. Returns a non-zero HRESULT when the attribute is
+    /// not understood, which is how a Windows version that predates it reports
+    /// itself, so callers must check the result rather than assume success.
+    /// </summary>
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    internal static extern int DwmSetWindowAttribute(
+        IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>Reads a window attribute back; used to confirm a backdrop took effect.</summary>
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    internal static extern int DwmGetWindowAttribute(
+        IntPtr hwnd, int attribute, out int value, int size);
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     internal struct SHFILEINFO
     {

@@ -93,7 +93,98 @@ Two deliberate consequences:
 - An intentional hide (the tray's "hide all widgets") suspends the hook, which
   is what `IDesktopLayerService.SetVisible` does.
 
-### Dragging
+### Moving, resizing and snapping
+
+#### The drag strip
+
+Every widget has a drag strip across the top of its card. It is part of the
+window chrome rather than of any widget, so a widget can rely on it existing —
+which matters for the sticky note, whose text boxes fill the rest of the surface
+and would otherwise leave nothing to grab. Dragging still also works on any part
+of the card that is not itself interactive (a button, a text box).
+
+The strip is an **overlay, not a reserved row**: the widget content keeps the
+whole card and the strip floats on top of the first 16px of it. Its background is
+transparent for exactly that reason — anything else would paint over the content
+underneath. The only thing it draws is a short rounded bar centred in it, which
+is pure decoration: absent at rest, faded in while the pointer is over the
+widget, and painted in the accent colour while the widget is being moved. The bar
+carries a small drop shadow, because a translucent white pill on a light
+background would otherwise be invisible. Hovering the strip deliberately does not
+change the cursor; the resize bands do show a resize cursor, since an invisible
+hotspot with no cursor is undiscoverable.
+
+Because the strip overlays the content, a widget whose first row of content is
+interactive keeps a little top padding so its controls do not sit underneath the
+strip. Both widgets with top-anchored content (the sticky note's title box and
+the launcher's first row of tiles) leave 18px of clearance.
+
+#### Magnetic snapping
+
+Dragging a widget near another one snaps them together. The rules live in
+`WidgetSnapEngine` and are pure, so they are unit-tested rather than tuned by
+feel:
+
+- **Adjacent**, with an 8px gap. Widgets are meant to read as separate objects,
+  so they never end up flush against each other. This only applies when the two
+  already overlap on the other axis — a widget far below another will not be
+  glued to its side.
+- **Aligned** — sharing a left, right, top, bottom or centre line.
+
+The capture range is deliberately small: an edge snaps when it is within 8px —
+the gap itself — of a snap position. This is a local gesture, not a gravity well.
+Only widgets whose edges are within 16px of each other take part **at all**;
+without that limit a widget could be pulled into alignment with another one on
+the far side of the desktop purely because they happened to share an edge, which
+reads as global grid alignment rather than as two widgets placed together.
+
+Snapping is measured between **cards, not windows**. The window carries a
+transparent margin for the glow, and measuring that instead would leave two
+snapped widgets 32px apart on screen while the code believed the gap was 8.
+
+#### The magnetism glow
+
+The glow shows the region two widgets actually share, rather than lighting a
+whole edge. For a snapped pair, the axis they are *separated* on decides which
+edge faces the neighbour, and along that edge only the stretch the neighbour
+really covers is lit. So:
+
+- A neighbour shorter than the widget lights only the part of the edge that
+  overlaps, with the rest left dark.
+- Two neighbours on the same side light two separate stretches.
+- A diagonal placement is separated on both axes, so two edges light at once.
+- When the rectangles share nothing along the facing edge, a short stretch at the
+  nearest end is lit instead, so a diagonal placement still reads as attached.
+
+Segments are expressed as fractions of the card, so they stay correct when the
+widget is resized.
+
+It is drawn by `WidgetGlowLayer`, a hand-drawn decoration layer rather than a
+set of borders, because the shape is not expressible with borders: one edge can
+be lit in several stretches, several edges can be lit at once, and each stretch
+needs a gradient that fades away from the shared edge while also softening at its
+two ends. A border carries one brush, and one brush cannot fade along two axes.
+
+The layer is never hit-testable and takes no layout space.
+
+The fade reaches `WidgetGlowLayer.DefaultFadeLength` (14 DIP) inwards from the
+edge. Because that fade is short, a fully opaque edge colour reads as a painted
+stripe rather than as light spilling in from the neighbouring widget, so two
+things shape it:
+
+- `EdgeOpacity` (0.6) sets the alpha at the shared edge — deliberately well below
+  opaque.
+- `FalloffExponent` (1.5) bends the falloff. Light decays faster near its source,
+  so a linear ramp looks like a wedge; sampling an ease-out curve gives a decay of
+  roughly 153 → 99 → 54 → 19 → 0 over the fade, instead of 255 → 191 → 128 → 64 → 0.
+
+That direction is also why the card is inset inside its window by
+`WidgetWindow.GlowMargin`. Anything a window paints outside itself is clipped, so
+the window has to be larger than the card for the card's own drop shadow to be
+visible at all. Stored placements describe the visible card, so the margin never
+leaks into the saved layout.
+
+#### Dragging
 
 Dragging is implemented by hand rather than through `BeginMoveDrag`, because the
 system move loop reorders the window and fights the "always at the bottom" rule.
@@ -106,6 +197,29 @@ movement back into the calculation, and `x ← pointer − x` oscillates: the wi
 lurches back towards where the drag started instead of following the cursor, and
 tracks at roughly half speed in between. `WidgetDragSessionTests` pins this down,
 including an executable record of the broken formula.
+
+Magnetism is applied *after* that calculation, to the already-correct position,
+so it nudges the widget without ever feeding back into the pointer tracking.
+
+#### Resizing
+
+The whole card perimeter is a resize handle — left, right and bottom edges, plus
+all four corners — with two deliberate details:
+
+- The card's **top band is left to the drag strip**, because the two would
+  otherwise overlap and make the strip unreliable. The top *corners* still
+  resize, so the top edge is not a dead zone.
+- Edge bands are 5px wide, which lands in the widget's padding rather than on its
+  controls.
+
+The system resize loop is not used, for the same reason as `BeginMoveDrag`: it
+reorders the window and fights the bottom-most pinning rule. The geometry lives in
+`WidgetResizeSession` and follows the same discipline as the drag — the result is
+a function of the pointer and of the rectangle captured when the button went
+down, never of the window's current size. Dragging an edge moves that edge and
+leaves the opposite one anchored, and the widget's minimum size is enforced by
+pushing back the edge being dragged rather than by moving the anchored one.
+`WidgetResizeSessionTests` covers the hit testing and all eight directions.
 
 ## Project layout
 

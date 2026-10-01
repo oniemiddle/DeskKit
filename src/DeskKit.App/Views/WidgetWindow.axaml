@@ -1,34 +1,68 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:DeskKit.App.Views"
         x:Class="DeskKit.App.Views.WidgetWindow"
         Title="DeskKit widget"
         Width="260"
         Height="160"
-        MinWidth="120"
-        MinHeight="80"
+        MinWidth="152"
+        MinHeight="112"
         WindowDecorations="None"
-        CanResize="False"        ShowInTaskbar="False"
+        CanResize="False"
+        ShowInTaskbar="False"
         WindowStartupLocation="Manual"
         Background="Transparent"
         TransparencyLevelHint="Transparent">
 
-    <!-- The window itself is fully transparent; only the rounded card is drawn,
-         which is what keeps the widget free of a rectangular backdrop. -->
-    <Grid>
-        <Border Name="CardBorder"
+    <!-- MinWidth/MinHeight are window sizes, as Avalonia defines them. The shell
+         converts a widget's minimum card size with WindowSizeForCard before
+         assigning them, and these defaults are the card minimum plus the glow
+         margin on both sides. -->
+
+    <!-- The window itself is fully transparent; only the rounded card is drawn.
+         The card is inset by GlowMargin so its own drop shadow has room to
+         render: anything painted outside the window is clipped. -->
+    <Grid>        <Border Name="CardBorder"
+                Margin="16"
                 Background="#FF2563EB"
                 CornerRadius="14"
                 ClipToBounds="True"
-                BoxShadow="0 8 28 0 #66000000">
-            <ContentPresenter Name="ContentHost" />
-        </Border>
+                BoxShadow="0 8 24 0 #55000000">
+            <Panel>
+                <ContentPresenter Name="ContentHost" />
 
-        <Border Name="ResizeGrip"
-                Width="18"
-                Height="18"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Background="Transparent"
-                Cursor="BottomRightCorner" />
+                <!-- The drag strip is an overlay, not a reserved row: the widget
+                     content keeps the whole card, and the strip floats on top of
+                     the first few pixels of it. Its background therefore has to be
+                     transparent, or it would paint over that content. The bar is
+                     the only thing it draws, and only while the widget is being
+                     interacted with. -->
+                <Border Name="DragHandle"
+                        Height="16"
+                        VerticalAlignment="Top"
+                        Background="Transparent">
+                    <!-- The shadow is what keeps the bar readable on a light
+                         background, where a translucent white pill on its own
+                         would disappear. -->
+                    <Border Name="DragBar"
+                            Width="36"
+                            Height="4"
+                            CornerRadius="2"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="#59FFFFFF"
+                            BoxShadow="0 1 4 0 #59000000"
+                            Opacity="0" />
+                </Border>
+
+                <!-- Magnetism feedback. A decoration layer, drawn in code because
+                     the shape is not expressible with borders: the glow follows
+                     the region two widgets actually share, so one edge can be lit
+                     in several separate stretches and several edges can be lit at
+                     once, each with its own gradient fading away from the shared
+                     edge. -->
+                <views:WidgetGlowLayer Name="SnapGlow" IsHitTestVisible="False" IsVisible="False" />
+            </Panel>
+        </Border>
     </Grid>
 </Window>

@@ -16,13 +16,28 @@ namespace DeskKit.App.Views;
 /// </summary>
 public partial class WidgetWindow : Window
 {
+    /// <summary>
+    /// Transparent inset between the window edge and the card, in logical
+    /// pixels. It exists so the magnetism glow has somewhere to spread: a glow
+    /// drawn outside the card would otherwise be clipped by the window.
+    /// </summary>
+    public const double GlowMargin = 16;
+
+    /// <summary>The bar's colour while the widget is being moved.</summary>
+    public static readonly IBrush DragBarActiveBrush =
+        new SolidColorBrush(Color.Parse("#FF2563EB"));
+
+    /// <summary>The bar's colour on hover, before the widget starts moving.</summary>
+    public static readonly IBrush DragBarIdleBrush =
+        new SolidColorBrush(Color.Parse("#59FFFFFF"));
+
     private readonly IDesktopLayerService _desktopLayer;
 
     private bool _dragging;
     private WidgetDragSession _dragSession;
-    private bool _resizing;
-    private Point _resizeStartLocal;
-    private Size _resizeStartSize;
+    private bool _hoveringDragHandle;
+    private WidgetResizeSession _resizeSession;
+    private WidgetEdges _resizingEdges = WidgetEdges.None;
 
     public WidgetWindow()
         : this(new NullDesktopLayerService())
@@ -39,13 +54,22 @@ public partial class WidgetWindow : Window
         CardBorder.PointerMoved += OnDragSurfacePointerMoved;
         CardBorder.PointerReleased += OnDragSurfacePointerReleased;
 
-        ResizeGrip.PointerPressed += OnResizeGripPointerPressed;
-        ResizeGrip.PointerMoved += OnResizeGripPointerMoved;
-        ResizeGrip.PointerReleased += OnResizeGripPointerReleased;
+        // Hover reveals the drag affordance. PointerMoved is wired in as well,
+        // because Entered/Exited can be missed when the window slides out from
+        // under the cursor mid-drag.
+        CardBorder.PointerEntered += (_, _) => SetDragAffordance(hovered: true, _dragging);
+        CardBorder.PointerExited += (_, _) => SetDragAffordance(hovered: false, _dragging);
     }
 
     /// <summary>True when this window can take keyboard focus (sticky notes need it).</summary>
     public bool AcceptsKeyboardFocus { get; init; } = true;
+
+    /// <summary>
+    /// Consulted during a drag to magnetically align the widget. The shell
+    /// supplies it because only the shell knows about the other widgets; it also
+    /// takes care of highlighting whichever neighbours were snapped to.
+    /// </summary>
+    public Func<PixelPoint, PixelPoint>? SnapStrategy { get; set; }
 
     /// <summary>Raised after the user finishes dragging the widget.</summary>
     public event EventHandler? DragCompleted;
@@ -75,6 +99,9 @@ public partial class WidgetWindow : Window
     public CornerRadius CardCornerRadius
     {
         get => CardBorder.CornerRadius;
+
+        // The glow is clipped by the card, so it follows the card's radius
+        // automatically and needs no separate handling.
         set => CardBorder.CornerRadius = value;
     }
 
@@ -87,6 +114,119 @@ public partial class WidgetWindow : Window
     {
         get => CardBorder.Margin;
         set => CardBorder.Margin = value;
+    }
+
+    /// <summary>
+    /// The reserved drag region, in window coordinates. Every widget has one,
+    /// including widgets whose content covers the rest of the surface.
+    /// </summary>
+    public Rect DragHandleBounds => ToWindowBounds(DragHandle);
+
+    /// <summary>The widget content area, in window coordinates.</summary>
+    public Rect ContentBounds => ToWindowBounds(ContentHost);
+
+    /// <summary>
+    /// The visible card, in window coordinates. This is the window inset by
+    /// <see cref="GlowMargin"/>, and it is what snapping measures, so that two
+    /// widgets snapped together show the configured gap between their visible
+    /// edges rather than between their transparent windows.
+    /// </summary>
+    public Rect CardBounds => ToWindowBounds(CardBorder);
+
+    /// <summary>Screen size of a window sized to hold a card of the given size.</summary>
+    public static Size WindowSizeForCard(double cardWidth, double cardHeight) =>
+        new(cardWidth + (GlowMargin * 2), cardHeight + (GlowMargin * 2));
+
+    /// <summary>Card size held by a window of the given size.</summary>
+    public static Size CardSizeForWindow(double windowWidth, double windowHeight) =>
+        new(
+            Math.Max(1, windowWidth - (GlowMargin * 2)),
+            Math.Max(1, windowHeight - (GlowMargin * 2)));
+
+    /// <summary>
+    /// Background of the drag strip. It is an overlay lying on top of the widget
+    /// content, so this must stay transparent — anything else would paint over
+    /// whatever the widget is showing.
+    /// </summary>
+    public IBrush? DragHandleBackground => DragHandle.Background;
+
+    /// <summary>
+    /// The cursor the drag strip asks for. Null means hovering it does not
+    /// change the cursor.
+    /// </summary>
+    public Cursor? DragHandleCursor => DragHandle.Cursor;
+
+    /// <summary>Opacity of the drag affordance bar: 0 while it is hidden.</summary>
+    public double DragBarOpacity => DragBar.Opacity;
+
+    /// <summary>Colour of the drag affordance bar.</summary>
+    public IBrush? DragBarBackground => DragBar.Background;
+
+    /// <summary>How many shadows the drag bar casts. Zero would mean it risks
+    /// vanishing on a light background.</summary>
+    public int DragBarShadowCount => DragBar.BoxShadow.Count;
+
+    /// <summary>Whether the magnetism glow is currently drawn at all.</summary>
+    public bool IsSnapGlowVisible => SnapGlow.IsVisible;
+
+    /// <summary>The stretches of the card currently lit by the magnetism glow.</summary>
+    public IReadOnlyList<WidgetGlowSegment> GlowSegments => SnapGlow.Segments;
+
+    /// <summary>How far the glow reaches inwards from the edge, in DIPs.</summary>
+    public double GlowFadeLength => WidgetGlowLayer.DefaultFadeLength;
+
+    /// <summary>Alpha used at the shared edge; well below opaque on purpose.</summary>
+    public byte GlowEdgeAlpha => SnapGlow.EdgeAlpha;
+
+    /// <summary>Shape of the falloff away from the shared edge.</summary>
+    public double GlowFalloffExponent => SnapGlow.FalloffExponent;
+
+    /// <summary>
+    /// False means the glow cannot swallow pointer input, which is what lets it
+    /// be an overlay.
+    /// </summary>
+    public bool SnapGlowHitTestable => SnapGlow.IsHitTestVisible;
+
+    /// <summary>
+    /// Shows the magnetism glow on the given stretches of the card's edges, and
+    /// clears it otherwise. The stretches come from the region the widget shares
+    /// with the widgets it snapped to, so a partly overlapping neighbour lights
+    /// only the part of the edge it actually covers.
+    /// </summary>
+    public void SetSnapHighlight(IReadOnlyList<WidgetGlowSegment> segments)
+    {
+        SnapGlow.Segments = segments;
+
+        // The property setter normally handles this, but an empty list leaves it
+        // to us to make sure a stale glow cannot linger.
+        SnapGlow.IsVisible = segments.Count > 0;
+    }
+
+    /// <summary>
+    /// Sets the drag affordance appearance. Exposed so the self-test can drive
+    /// it without synthesising pointer input.
+    /// </summary>
+    public void SetDragAffordance(bool hovered, bool dragging)
+    {
+        _hoveringDragHandle = hovered;
+
+        // The bar is decoration: it is absent at rest, fades in while the
+        // pointer is over the widget, and turns accent-coloured for as long as
+        // the widget is actually being moved.
+        if (dragging)
+        {
+            DragBar.Background = DragBarActiveBrush;
+            DragBar.Opacity = 1;
+        }
+        else if (hovered)
+        {
+            DragBar.Background = DragBarIdleBrush;
+            DragBar.Opacity = 0.85;
+        }
+        else
+        {
+            DragBar.Opacity = 0;
+        }
     }
 
     /// <summary>Exposed so diagnostics can drive show/hide the same way the shell does.</summary>
@@ -115,17 +255,31 @@ public partial class WidgetWindow : Window
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
 
+        var pointerInWindow = e.GetPosition(this);
+
+        // A resize band wins over everything else: it sits on the card's outer
+        // few pixels, which are padding rather than content.
+        var edges = HitTestResizeEdges(pointerInWindow);
+        if (edges != WidgetEdges.None)
+        {
+            BeginResize(edges, this.PointToScreen(pointerInWindow));
+            e.Pointer.Capture(CardBorder);
+            e.Handled = true;
+            return;
+        }
+
         // Let buttons, text boxes and menus inside the widget handle their own input.
         if (IsInteractive(e.Source as Visual))
             return;
 
         _dragging = true;
+        SetDragAffordance(hovered: true, dragging: true);
 
         // Record where the cursor is relative to the window's origin, in screen
         // pixels. The cursor is still inside the window at this instant, so the
         // window has definitely not moved yet.
         _dragSession = WidgetDragSession.Start(
-            this.PointToScreen(e.GetPosition(this)), Position);
+            this.PointToScreen(pointerInWindow), Position);
 
         e.Pointer.Capture(CardBorder);
         e.Handled = true;
@@ -133,8 +287,23 @@ public partial class WidgetWindow : Window
 
     private void OnDragSurfacePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_dragging)
+        // Safety net for a missed PointerEntered, and the only thing that keeps
+        // the affordance correct when the window slides under the cursor.
+        if (!_hoveringDragHandle && !_dragging)
+            SetDragAffordance(hovered: true, dragging: false);
+
+        if (_resizingEdges != WidgetEdges.None)
+        {
+            ApplyResize(this.PointToScreen(e.GetPosition(this)));
+            e.Handled = true;
             return;
+        }
+
+        if (!_dragging)
+        {
+            UpdateResizeCursor(e.GetPosition(this));
+            return;
+        }
 
         // Deliberately a function of the pointer alone. Deriving the new origin
         // from the window's current position would feed the window's own
@@ -142,55 +311,113 @@ public partial class WidgetWindow : Window
         // towards where the drag started instead of tracking the cursor.
         var target = _dragSession.PositionFor(this.PointToScreen(e.GetPosition(this)));
 
+        // Magnetism is applied afterwards, so it nudges the pointer-derived
+        // position rather than feeding into it.
+        if (SnapStrategy is { } snap)
+            target = snap(target);
+
         if (Position != target)
             Position = target;
     }
 
     private void OnDragSurfacePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_resizingEdges != WidgetEdges.None)
+        {
+            EndResize();
+            e.Pointer.Capture(null);
+            return;
+        }
+
         if (!_dragging)
             return;
 
         _dragging = false;
+        SetDragAffordance(hovered: true, dragging: false);
         e.Pointer.Capture(null);
         DragCompleted?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnResizeGripPointerPressed(object? sender, PointerPressedEventArgs e)
+    /// <summary>
+    /// Which edges, if any, a pointer position grabs. The card's top band is
+    /// excluded because the drag strip owns it; the top corners still resize.
+    /// </summary>
+    public WidgetEdges HitTestResizeEdges(Point pointerInWindow) =>
+        WidgetResizeSession.HitTest(CardBounds, pointerInWindow, allowTopEdge: false);
+
+    /// <summary>
+    /// Starts dragging the given edges from the given screen pointer position.
+    /// The press handlers call this; it is public so the resize can also be
+    /// driven programmatically.
+    /// </summary>
+    public void BeginResize(WidgetEdges edges, PixelPoint pointerScreen)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (edges == WidgetEdges.None)
             return;
 
-        _resizing = true;
-        _resizeStartLocal = e.GetPosition(this);
-        _resizeStartSize = new Size(Bounds.Width, Bounds.Height);
-        e.Pointer.Capture(ResizeGrip);
-        e.Handled = true;
+        _resizingEdges = edges;
+        _resizeSession = WidgetResizeSession.Begin(
+            edges,
+            pointerScreen,
+            new PixelRect(Position, PixelSize.FromSize(Bounds.Size, RenderScaling)));
     }
 
-    private void OnResizeGripPointerMoved(object? sender, PointerEventArgs e)
+    /// <summary>Applies a resize for the given pointer position.</summary>
+    public void ApplyResize(PixelPoint pointerScreen)
     {
-        if (!_resizing)
+        if (_resizingEdges == WidgetEdges.None)
             return;
 
-        var current = e.GetPosition(this);
-        Width = Math.Max(MinWidth, _resizeStartSize.Width + (current.X - _resizeStartLocal.X));
-        Height = Math.Max(MinHeight, _resizeStartSize.Height + (current.Y - _resizeStartLocal.Y));
+        var target = _resizeSession.Resolve(pointerScreen, MinimumSizeInPixels());
+
+        // Window.Width is the window size in device-independent pixels, and the
+        // resolved rectangle is in physical pixels, so it is a plain conversion —
+        // the glow margin is already part of the window rectangle and must not be
+        // taken out here, or the window ends up a margin smaller every time.
+        Width = Math.Max(MinWidth, target.Width / RenderScaling);
+        Height = Math.Max(MinHeight, target.Height / RenderScaling);
+        Position = new PixelPoint(target.X, target.Y);
     }
 
-    private void OnResizeGripPointerReleased(object? sender, PointerReleasedEventArgs e)
+    /// <summary>Finishes a resize and reports it.</summary>
+    public void EndResize()
     {
-        if (!_resizing)
+        if (_resizingEdges == WidgetEdges.None)
             return;
 
-        _resizing = false;
-        e.Pointer.Capture(null);
+        _resizingEdges = WidgetEdges.None;
 
-        // Remember the settled size so the pinning hook can tell a genuine
-        // resize apart from a collapse to the caption icon rect.
+        // Remember the settled size, so the pinning hook can tell a genuine
+        // resize from a collapse to the caption icon rect.
         _desktopLayer.SyncNormalSize(this);
         ResizeCompleted?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>True while an edge or corner is being dragged.</summary>
+    public bool IsResizing => _resizingEdges != WidgetEdges.None;
+
+    /// <summary>Which edges the in-progress resize is dragging.</summary>
+    public WidgetEdges ResizingEdges => _resizingEdges;
+
+    /// <summary>Shows a resize cursor over the resize bands, and nothing elsewhere.</summary>
+    private void UpdateResizeCursor(Point pointerInWindow)
+    {
+        var edges = HitTestResizeEdges(pointerInWindow);
+        Cursor = edges switch
+        {
+            WidgetEdges.Left or WidgetEdges.Right => new Cursor(StandardCursorType.SizeWestEast),
+            WidgetEdges.Top or WidgetEdges.Bottom => new Cursor(StandardCursorType.SizeNorthSouth),
+            WidgetEdges.Left | WidgetEdges.Top => new Cursor(StandardCursorType.TopLeftCorner),
+            WidgetEdges.Right | WidgetEdges.Top => new Cursor(StandardCursorType.TopRightCorner),
+            WidgetEdges.Left | WidgetEdges.Bottom => new Cursor(StandardCursorType.BottomLeftCorner),
+            WidgetEdges.Right | WidgetEdges.Bottom => new Cursor(StandardCursorType.BottomRightCorner),
+            _ => null,
+        };
+    }
+
+    /// <summary>The minimum window size in physical pixels.</summary>
+    private PixelSize MinimumSizeInPixels() =>
+        PixelSize.FromSize(new Size(MinWidth, MinHeight), RenderScaling);
 
     /// <summary>
     /// True when the pointer event originated on a control that handles input
@@ -205,5 +432,12 @@ public partial class WidgetWindow : Window
         }
 
         return false;
+    }
+
+    /// <summary>Converts a child's bounds into window coordinates.</summary>
+    private Rect ToWindowBounds(Visual visual)
+    {
+        var origin = visual.TranslatePoint(default, this) ?? default;
+        return new Rect(origin, visual.Bounds.Size);
     }
 }

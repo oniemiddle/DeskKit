@@ -5,7 +5,7 @@
              x:DataType="note:StickyNoteViewModel">
 
     <Border Background="{Binding PaperBrush}" CornerRadius="14">
-        <Grid Margin="16,12,16,14" RowDefinitions="Auto,*">
+        <Grid Margin="16,18,16,14" RowDefinitions="Auto,*">
             <TextBox Grid.Row="0"
                      Classes="plain"
                      FontSize="14"

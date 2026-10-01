@@ -14,7 +14,6 @@ using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
 using Microsoft.Extensions.Logging.Abstractions;
-
 namespace DeskKit.App.Diagnostics;
 
 /// <summary>
@@ -161,7 +160,9 @@ internal sealed class DesktopLayerSelfTest
         await CheckShowDesktopResistanceAsync(layer, hwnd);
         await CheckMoveAndResizeAsync(layer, window, hwnd);
         await CheckDragTrackingAsync(window, hwnd);
+        await CheckResizeAsync(window, hwnd);
         await CheckWidgetShellAsync();
+        await CheckDragHandleChromeAsync();
     }
 
     private WidgetWindow CreateProbeWindow(IDesktopLayerService layer)
@@ -170,7 +171,9 @@ internal sealed class DesktopLayerSelfTest
         {
             AcceptsKeyboardFocus = false,
             CardBackground = new SolidColorBrush(CardColor),
-            CardMargin = new Thickness(32),
+
+            // Matches a real widget, so the reported geometry is comparable.
+            CardMargin = new Thickness(WidgetWindow.GlowMargin),
             CardCornerRadius = new CornerRadius(14),
             WidgetContent = new TextBlock
             {
@@ -520,6 +523,265 @@ internal sealed class DesktopLayerSelfTest
         await Delay(150);
     }
 
+    /// <summary>
+    /// Drives the real snap strategy the drag handler calls: a widget moved next
+    /// to another must land with the configured gap rather than flush against it,
+    /// and both must light up. Moving away again must clear the highlight.
+    /// </summary>
+    private async Task CheckMagnetismAsync(WidgetRegistry registry, WidgetShell shell)
+    {
+        Section("11. magnetic snapping");
+
+        var runtimes = shell.Runtimes;
+        if (runtimes.Count < 2)
+        {
+            Fail("at least two widgets exist to snap together", $"count={runtimes.Count}");
+            return;
+        }
+
+        var moving = runtimes[^1];
+        var anchor = runtimes[0];
+
+        if (!DesktopDiagnostics.TryGetWindowRect(anchor.Window.Handle, out var anchorRect))
+        {
+            Fail("the anchor widget's rect is readable", "GetWindowRect failed");
+            return;
+        }
+
+        Note($"anchor          : {anchorRect}");
+        Note($"moving          : {moving.Window.Position}");
+
+        // Snapping is measured between visible cards, so the assertions here are
+        // too: the transparent glow margin must not show up as part of the gap.
+        var margin = (int)Math.Round(WidgetWindow.GlowMargin);
+        var anchorCard = Inset(anchorRect, margin);
+        var movingCardSize = moving.Window.CardBounds.Size;
+        var movingCardSizePx = new PixelSize(
+            (int)Math.Round(movingCardSize.Width), (int)Math.Round(movingCardSize.Height));
+
+        Note($"anchor card     : {anchorCard}");
+        Note($"moving card     : {movingCardSizePx}");
+
+        // Aim for just to the right of the anchor's card, deliberately a few
+        // pixels short of the gap so nothing but magnetism can produce the value.
+        var expectedWindowX = anchorCard.Right + WidgetSnapEngine.DefaultGap - margin;
+        var proposed = new PixelPoint(expectedWindowX - 5, anchorCard.Y + 20);
+
+        var snapped = moving.Window.SnapStrategy?.Invoke(proposed) ?? proposed;
+        var snappedCard = new PixelRect(
+            new PixelPoint(snapped.X + margin, snapped.Y + margin), movingCardSizePx);
+
+        Note($"proposed        : {proposed}  (card would be at {proposed.X + margin})");
+        Note($"snapped to      : {snapped}  (card at {snappedCard.X})");
+
+        Check("the snap strategy is installed on every widget",
+            moving.Window.SnapStrategy is not null);
+
+        Check("a widget dragged next to another lands exactly one gap away",
+            snappedCard.X - anchorCard.Right == WidgetSnapEngine.DefaultGap,
+            $"visible gap={snappedCard.X - anchorCard.Right}, expected {WidgetSnapEngine.DefaultGap}");
+
+        Check("the snapped widgets are not touching",
+            snappedCard.X - anchorCard.Right >= WidgetSnapEngine.DefaultGap,
+            $"gap={snappedCard.X - anchorCard.Right}");
+
+        // The overlap between the two cards decides which stretch lights up.
+        var movingGlow = moving.Window.GlowSegments;
+        var anchorGlow = anchor.Window.GlowSegments;
+
+        Note($"moving glow     : {Describe(movingGlow)}");
+        Note($"anchor glow     : {Describe(anchorGlow)}");
+
+        Check("the dragged widget lights up on the edge facing its neighbour",
+            movingGlow.Count == 1 && movingGlow[0].Edge == WidgetEdge.Left,
+            Describe(movingGlow));
+
+        Check("the widget it snapped to lights up on the matching edge",
+            anchorGlow.Count == 1 && anchorGlow[0].Edge == WidgetEdge.Right,
+            Describe(anchorGlow));
+
+        // Both cards are level at the top but differ in height, so only the
+        // region they actually share is lit. This is the whole point of
+        // measuring the overlap rather than lighting the entire edge.
+        var sharedHeight = Math.Min(snappedCard.Bottom, anchorCard.Bottom)
+                           - Math.Max(snappedCard.Y, anchorCard.Y);
+        var expectedLength = sharedHeight / (double)snappedCard.Height;
+
+        Note($"shared height   : {sharedHeight} of {snappedCard.Height}");
+
+        Check("the lit stretch is exactly the region the two widgets share",
+            Math.Abs(movingGlow[0].Length - expectedLength) < 0.02,
+            $"lit {movingGlow[0].Length:P0}, shared {expectedLength:P0}");
+
+        Check("a neighbour shorter than the widget leaves the rest of the edge unlit",
+            movingGlow[0].Length < 0.99 && movingGlow[0].Start < 0.01,
+            Describe(movingGlow));
+
+        // Now the case the whole feature exists for: a neighbour that only
+        // covers part of the edge must light only that part.
+        var partial = WidgetSnapEngine.GlowSegments(
+            new PixelRect(0, 0, 200, 100),
+            [new PixelRect(208, 40, 200, 30)]);
+
+        Note($"partial overlap : {Describe(partial)}");
+
+        Check("a neighbour covering part of an edge lights only that part",
+            partial.Count == 1
+            && partial[0].Edge == WidgetEdge.Right
+            && Math.Abs(partial[0].Start - 0.4) < 0.01
+            && Math.Abs(partial[0].Length - 0.3) < 0.01,
+            Describe(partial));
+
+        // Two neighbours down the same side light two separate stretches.
+        var twoOnOneEdge = WidgetSnapEngine.GlowSegments(
+            new PixelRect(0, 0, 200, 300),
+            [new PixelRect(208, 0, 200, 50), new PixelRect(208, 200, 200, 60)]);
+
+        Note($"two on one edge : {Describe(twoOnOneEdge)}");
+
+        Check("two neighbours on the same side light two separate stretches",
+            twoOnOneEdge.Count == 2
+            && twoOnOneEdge.All(s => s.Edge == WidgetEdge.Right)
+            && twoOnOneEdge[0].End <= twoOnOneEdge[1].Start + 0.01,
+            Describe(twoOnOneEdge));
+
+        // A diagonal placement touches on two sides at once.
+        var diagonal = WidgetSnapEngine.GlowSegments(
+            new PixelRect(0, 0, 100, 100),
+            [new PixelRect(108, 108, 100, 100)]);
+
+        Note($"diagonal        : {Describe(diagonal)}");
+
+        Check("a diagonal placement lights two edges at once",
+            diagonal.Select(s => s.Edge).Distinct().Count() == 2,
+            Describe(diagonal));
+
+        // Now move far away: nothing should be highlighted any more.
+        var away = new PixelPoint(proposed.X + 600, proposed.Y + 400);
+        var unsnapped = moving.Window.SnapStrategy?.Invoke(away) ?? away;
+
+        Check("moving away from everything snaps to nothing",
+            unsnapped == away, $"got {unsnapped}");
+
+        Check("the highlight clears once nothing is snapped",
+            !moving.Window.IsSnapGlowVisible && moving.Window.GlowSegments.Count == 0
+            && !anchor.Window.IsSnapGlowVisible && anchor.Window.GlowSegments.Count == 0);
+
+        await Delay(50);
+    }
+
+    private static string Describe(IReadOnlyList<WidgetGlowSegment> segments) =>
+        segments.Count == 0
+            ? "nothing"
+            : string.Join(", ", segments.Select(s =>
+                $"{s.Edge} {s.Start:P0}+{s.Length:P0}"));
+
+    /// <summary>
+    /// Checks that the whole card perimeter is a resize handle except the band
+    /// the drag strip owns, and that dragging one actually resizes the window.
+    /// </summary>
+    private async Task CheckResizeAsync(WidgetWindow window, IntPtr hwnd)
+    {
+        Section("8. resizing");
+
+        var card = window.CardBounds;
+        var midWidth = card.X + (card.Width / 2);
+        var midHeight = card.Y + (card.Height / 2);
+
+        Note($"card            : {card}");
+
+        Check("the card's top band is left to the drag strip, not the resize handle",
+            window.HitTestResizeEdges(new Point(midWidth, card.Y + 2)) == WidgetEdges.None);
+
+        Check("the left edge resizes",
+            window.HitTestResizeEdges(new Point(card.X + 2, midHeight)) == WidgetEdges.Left);
+
+        Check("the right edge resizes",
+            window.HitTestResizeEdges(new Point(card.Right - 2, midHeight)) == WidgetEdges.Right);
+
+        Check("the bottom edge resizes",
+            window.HitTestResizeEdges(new Point(midWidth, card.Bottom - 2)) == WidgetEdges.Bottom);
+
+        Check("the bottom-right corner resizes both axes",
+            window.HitTestResizeEdges(new Point(card.Right - 2, card.Bottom - 2))
+                == (WidgetEdges.Right | WidgetEdges.Bottom));
+
+        Check("the top-left corner still resizes, even though the top band does not",
+            window.HitTestResizeEdges(new Point(card.X + 2, card.Y + 2))
+                == (WidgetEdges.Left | WidgetEdges.Top));
+
+        Check("the middle of the card is not a resize handle",
+            window.HitTestResizeEdges(new Point(midWidth, midHeight)) == WidgetEdges.None);
+
+        // Now actually resize, through the same entry points the pointer
+        // handlers use.
+        var beforeRect = DesktopDiagnostics.TryGetWindowRect(hwnd, out var measured) ? measured : default;
+        var beforeCard = window.CardBounds.Size;
+        Note($"before          : window={beforeRect} card={beforeCard}");
+
+        var grab = new PixelPoint(beforeRect.X + beforeRect.Width - 4, beforeRect.Y + beforeRect.Height - 4);
+        window.BeginResize(WidgetEdges.Right | WidgetEdges.Bottom, grab);
+        Check("a resize is in progress once an edge is grabbed", window.IsResizing);
+
+        window.ApplyResize(new PixelPoint(grab.X + 60, grab.Y + 40));
+        await Delay(350);
+
+        var afterRect = DesktopDiagnostics.TryGetWindowRect(hwnd, out var resized) ? resized : default;
+        var afterCard = window.CardBounds.Size;
+        Note($"after           : window={afterRect} card={afterCard}");
+
+        Check("dragging a corner makes the card wider",
+            afterCard.Width > beforeCard.Width + 30, $"{beforeCard.Width} -> {afterCard.Width}");
+
+        Check("dragging a corner makes the card taller",
+            afterCard.Height > beforeCard.Height + 20, $"{beforeCard.Height} -> {afterCard.Height}");
+
+        Check("a right/bottom resize leaves the window's top-left corner where it was",
+            Math.Abs(afterRect.X - beforeRect.X) <= 2 && Math.Abs(afterRect.Y - beforeRect.Y) <= 2,
+            $"{beforeRect.X},{beforeRect.Y} -> {afterRect.X},{afterRect.Y}");
+
+        Check("resizing keeps the widget pinned to the bottom",
+            CountOffendersBelow(hwnd) == 0);
+
+        window.EndResize();
+        Check("the resize ends cleanly", !window.IsResizing);
+
+        // Dragging the left edge inwards must move the origin while the right
+        // edge stays put.
+        var anchoredRight = afterRect.Right;
+        var leftGrab = new PixelPoint(afterRect.X + 2, afterRect.Y + (afterRect.Height / 2));
+
+        window.BeginResize(WidgetEdges.Left, leftGrab);
+        window.ApplyResize(new PixelPoint(leftGrab.X + 40, leftGrab.Y));
+        await Delay(350);
+
+        var narrowed = DesktopDiagnostics.TryGetWindowRect(hwnd, out var narrow) ? narrow : default;
+        Note($"after left drag : window={narrowed}");
+
+        Check("dragging the left edge keeps the opposite edge anchored",
+            Math.Abs(narrowed.Right - anchoredRight) <= 2,
+            $"right edge {anchoredRight} -> {narrowed.Right}");
+
+        window.EndResize();
+
+        // Never let the widget be shrunk below its own minimum.
+        var tinyGrab = new PixelPoint(narrowed.X + 2, narrowed.Y + (narrowed.Height / 2));
+        window.BeginResize(WidgetEdges.Left, tinyGrab);
+        window.ApplyResize(new PixelPoint(tinyGrab.X + 5000, tinyGrab.Y));
+        await Delay(350);
+
+        var minimum = DesktopDiagnostics.TryGetWindowRect(hwnd, out var clamped) ? clamped : default;
+        var minimumCard = window.CardBounds.Size;
+        Note($"at minimum      : window={minimum} card={minimumCard} min={window.MinWidth}x{window.MinHeight}");
+
+        Check("the widget cannot be shrunk below its minimum",
+            minimum.Width >= window.MinWidth - 2 && minimumCard.Width > 0,
+            $"width={minimum.Width} min={window.MinWidth}");
+
+        window.EndResize();
+        await Delay(150);
+    }
+
     private static bool CanLoadSettingsWindow()
     {
         try
@@ -534,13 +796,225 @@ internal sealed class DesktopLayerSelfTest
     }
 
     /// <summary>
+    /// True for a brush that paints nothing at all, which is what an overlay
+    /// lying on top of content must use.
+    /// </summary>
+    private static bool IsFullyTransparent(IBrush? brush) =>
+        brush switch
+        {
+            null => true,
+            ISolidColorBrush solid => solid.Color.A == 0,
+
+            // Anything that is not a plain solid colour is treated as opaque
+            // enough to obscure the content underneath.
+            _ => false,
+        };
+
+    private static string DescribeBrush(IBrush? brush) =>
+        brush switch
+        {
+            null => "no background",
+            ISolidColorBrush solid => $"#{(uint)((solid.Color.A << 24) | (solid.Color.R << 16) | (solid.Color.G << 8) | solid.Color.B):X8}",
+            _ => brush.ToString() ?? "unknown",
+        };
+
+    /// <summary>Shrinks a rectangle by the given inset on every side.</summary>
+    private static PixelRect Inset(PixelRect rect, int inset) =>
+        new(
+            new PixelPoint(rect.X + inset, rect.Y + inset),
+            new PixelSize(
+                Math.Max(1, rect.Width - (inset * 2)),
+                Math.Max(1, rect.Height - (inset * 2))));
+
+    /// <summary>
+    /// Every widget must reserve a usable drag region at the top, and the
+    /// affordance for it must be hidden at rest, revealed on hover, and painted
+    /// in the accent colour while the widget is being moved.
+    /// <para>
+    /// This runs against every built-in widget rather than one of them, because
+    /// the case that motivated the region is the sticky note: its text boxes fill
+    /// the whole surface, so without a reserved region it cannot be moved at all.
+    /// </para>
+    /// </summary>
+    private async Task CheckDragHandleChromeAsync()
+    {
+        Section("10. drag handle chrome and magnetism glow");
+        var directory = Path.Combine(
+            Path.GetTempPath(), "deskkit-chrome-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var registry = new WidgetRegistry();
+        foreach (var provider in BuiltInWidgets.CreateProviders(new NullShellIconLoader()))
+            registry.Register(provider);
+
+        using var tickService = new TickService();
+
+        var shell = new WidgetShell(
+            new ConfigStore(directory),
+            registry,
+            new WindowsDesktopLayerService(),
+            new NullAutoStartService(),
+            tickService,
+            new ThemeService(),
+            NullLogger<WidgetShell>.Instance);
+
+        try
+        {
+            shell.Start();
+
+            foreach (var provider in registry.Providers)
+                shell.AddWidget(provider);
+
+            await Delay(2000);
+
+            // One window per widget type is enough; a first run already seeded a
+            // clock, so duplicates are dropped here.
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var sampled = 0;
+
+            foreach (var runtime in shell.Runtimes)
+            {
+                if (!seen.Add(runtime.Placement.WidgetId))
+                    continue;
+
+                sampled++;
+
+                var name = registry.Find(runtime.Placement.WidgetId)?.Descriptor.DisplayName
+                           ?? runtime.Placement.WidgetId;
+                var window = runtime.Window;
+                var handle = window.DragHandleBounds;
+                var card = window.CardBounds;
+
+                Note($"widget          : {name}");
+                Note($"  window        : {window.Bounds.Width}x{window.Bounds.Height}");
+                Note($"  card          : {card}");
+                Note($"  drag strip    : {handle}");
+                Note($"  content       : {window.ContentBounds}");
+
+                Check($"[{name}] has a drag strip across the top of the card",
+                    handle.Y - card.Y <= 1 && handle.Height >= 12 && handle.Width > 60,
+                    $"handle={handle} card={card}");
+
+                Check($"[{name}] the drag strip spans the card width",
+                    handle.Width >= card.Width - 2,
+                    $"handle.Width={handle.Width} card.Width={card.Width}");
+
+                // The strip is an overlay, so the content still occupies the whole
+                // card rather than being pushed down by it.
+                Check($"[{name}] the drag strip does not reserve layout space",
+                    window.ContentBounds.Top <= handle.Top + 0.5,
+                    $"content.Top={window.ContentBounds.Top} strip.Top={handle.Top}");
+
+                Check($"[{name}] the drag strip background is transparent",
+                    IsFullyTransparent(window.DragHandleBackground),
+                    DescribeBrush(window.DragHandleBackground));
+
+                Check($"[{name}] hovering the drag strip does not change the cursor",
+                    window.DragHandleCursor is null,
+                    window.DragHandleCursor?.ToString() ?? "no cursor set");
+
+                Check($"[{name}] the bar casts a shadow so it stays visible on light backgrounds",
+                    window.DragBarShadowCount > 0, $"shadows={window.DragBarShadowCount}");
+
+                // The glow has to be able to spread, which means the card cannot
+                // fill the window.
+                Check($"[{name}] the card is inset, leaving the halo room to spread",
+                    card.Width < window.Bounds.Width && card.Height < window.Bounds.Height,
+                    $"card={card.Width}x{card.Height} window={window.Bounds.Width}x{window.Bounds.Height}");
+
+                Check($"[{name}] the magnetism glow is absent until something snaps",
+                    !window.IsSnapGlowVisible && window.GlowSegments.Count == 0);
+
+                Check($"[{name}] the magnetism glow cannot swallow pointer input",
+                    !window.SnapGlowHitTestable);
+
+                // The fade has to be a soft edge, not a wash across the widget.
+                Check($"[{name}] the glow fades out over a short distance",
+                    window.GlowFadeLength is > 0 and <= 20,
+                    $"fade={window.GlowFadeLength} DIP");
+
+                // With a fade this short, a solid edge colour reads as a painted
+                // stripe rather than as light spilling in.
+                Check($"[{name}] the glow is translucent at the edge, not opaque",
+                    window.GlowEdgeAlpha is > 80 and < 230,
+                    $"edge alpha={window.GlowEdgeAlpha}/255");
+
+                Check($"[{name}] the glow falls off on a curve, not a straight ramp",
+                    window.GlowFalloffExponent > 1,
+                    $"exponent={window.GlowFalloffExponent}");
+
+                // Several stretches, on several edges, at once.
+                window.SetSnapHighlight(
+                [
+                    new WidgetGlowSegment(WidgetEdge.Right, 0.25, 0.5),
+                    new WidgetGlowSegment(WidgetEdge.Bottom, 0, 0.3),
+                ]);
+
+                Check($"[{name}] several stretches on several edges light up together",
+                    window.GlowSegments.Count == 2
+                    && window.GlowSegments[0].Edge == WidgetEdge.Right
+                    && window.GlowSegments[1].Edge == WidgetEdge.Bottom,
+                    Describe(window.GlowSegments));
+
+                Check($"[{name}] a lit stretch keeps its position along the edge",
+                    Math.Abs(window.GlowSegments[0].Start - 0.25) < 0.001
+                    && Math.Abs(window.GlowSegments[0].Length - 0.5) < 0.001,
+                    Describe(window.GlowSegments));
+
+                window.SetSnapHighlight([]);
+                Check($"[{name}] the magnetism glow can be turned off",
+                    !window.IsSnapGlowVisible && window.GlowSegments.Count == 0);
+
+                window.SetDragAffordance(hovered: false, dragging: false);
+                Check($"[{name}] the bar is absent at rest",
+                    window.DragBarOpacity == 0, $"opacity={window.DragBarOpacity}");
+
+                window.SetDragAffordance(hovered: true, dragging: false);
+                Check($"[{name}] the bar appears on hover",
+                    window.DragBarOpacity is > 0.5 and < 1
+                    && ReferenceEquals(window.DragBarBackground, WidgetWindow.DragBarIdleBrush),
+                    $"opacity={window.DragBarOpacity}");
+
+                window.SetDragAffordance(hovered: true, dragging: true);
+                Check($"[{name}] the bar turns accent-coloured while dragging",
+                    window.DragBarOpacity == 1
+                    && ReferenceEquals(window.DragBarBackground, WidgetWindow.DragBarActiveBrush),
+                    $"opacity={window.DragBarOpacity}");
+
+                window.SetDragAffordance(hovered: false, dragging: false);
+            }
+
+            Check("every built-in widget was sampled", sampled >= registry.Providers.Count,
+                $"sampled={sampled} of {registry.Providers.Count}");
+
+            await CheckMagnetismAsync(registry, shell);
+        }
+        catch (Exception ex)
+        {
+            Fail("the drag handle chrome was verified", ex.Message);
+        }
+        finally
+        {
+            shell.Dispose();
+
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    /// <summary>
     /// Drives the real shell against a throwaway configuration directory: a
     /// first run must seed a widget, pin its window, write the file, and restore
     /// the same placement on the next start.
     /// </summary>
     private async Task CheckWidgetShellAsync()
     {
-        Section("8. widget shell end to end");
+        Section("9. widget shell end to end");
 
         var directory = Path.Combine(
             Path.GetTempPath(), "deskkit-selftest-" + Guid.NewGuid().ToString("N"));

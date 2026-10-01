@@ -23,6 +23,12 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 {
     private static readonly TimeSpan SaveDebounce = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>Space left between two widgets that snap next to each other.</summary>
+    private const int SnapGap = WidgetSnapEngine.DefaultGap;
+
+    /// <summary>How close an edge must be, in physical pixels, before it snaps.</summary>
+    private const int SnapThreshold = WidgetSnapEngine.DefaultThreshold;
+
     private readonly ConfigStore _configStore;
     private readonly WidgetRegistry _registry;
     private readonly IDesktopLayerService _desktopLayer;
@@ -210,16 +216,17 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             Icon = GetAppIcon(),
             CardBackground = ThemeService.CardBrush,
             WidgetContent = viewModel.CreateView(),
-            Width = placement.Width > 0 ? placement.Width : descriptor.DefaultWidth,
-            Height = placement.Height > 0 ? placement.Height : descriptor.DefaultHeight,
-            MinWidth = descriptor.MinWidth,
-            MinHeight = descriptor.MinHeight,
+            Width = WindowSizeForPlacement(placement, descriptor).Width,
+            Height = WindowSizeForPlacement(placement, descriptor).Height,
+            MinWidth = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight).Width,
+            MinHeight = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight).Height,
             Position = new PixelPoint(placement.X, placement.Y),
         };
 
         var runtime = new WidgetRuntime(placement, viewModel, window);
         window.SetContextMenu(BuildContextMenu(runtime));
-        window.DragCompleted += (_, _) => CapturePlacement(runtime);
+        window.SnapStrategy = proposed => SnapPosition(runtime, proposed);
+        window.DragCompleted += (_, _) => OnDragCompleted(runtime);
         window.ResizeCompleted += (_, _) => CapturePlacement(runtime);
 
         if (viewModel is ITickAware tickAware)
@@ -303,12 +310,18 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         var window = runtime.Window;
 
+        // Stored sizes describe the visible card, not the window, so the
+        // transparent glow margin never leaks into the persisted layout.
+        var card = WidgetWindow.CardSizeForWindow(
+            window.Width > 0 ? window.Width : window.Bounds.Width,
+            window.Height > 0 ? window.Height : window.Bounds.Height);
+
         runtime.Placement = runtime.Placement with
         {
             X = window.Position.X,
             Y = window.Position.Y,
-            Width = window.Width,
-            Height = window.Height,
+            Width = card.Width,
+            Height = card.Height,
         };
 
         var index = State.Widgets.FindIndex(p => p.InstanceId == runtime.Placement.InstanceId);
@@ -316,6 +329,136 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             State.Widgets[index] = runtime.Placement;
 
         ScheduleSave();
+    }
+
+    private static Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
+    {
+        var cardWidth = placement.Width > 0 ? placement.Width : descriptor.DefaultWidth;
+        var cardHeight = placement.Height > 0 ? placement.Height : descriptor.DefaultHeight;
+        return WidgetWindow.WindowSizeForCard(cardWidth, cardHeight);
+    }
+
+    // ---- Magnetic snapping ----------------------------------------------
+
+    /// <summary>
+    /// Applies magnetism to a proposed drag position and highlights whatever the
+    /// widget snapped to, including the widget being dragged so the magnetised
+    /// group reads as one.
+    /// </summary>
+    /// <remarks>
+    /// Rectangles are compared in <b>card</b> space, not window space: the window
+    /// carries a transparent margin for the glow, and measuring that instead
+    /// would make two snapped widgets sit 32px further apart than the configured
+    /// gap. Everything is in physical pixels, because that is the unit the
+    /// pointer and the window position are both in.
+    /// </remarks>
+    private PixelPoint SnapPosition(WidgetRuntime moving, PixelPoint proposed)
+    {
+        if (!TryGetCardSize(moving, out var cardSize))
+        {
+            ClearSnapHighlights();
+            return proposed;
+        }
+
+        // The card sits GlowMargin inside the window, so the same offset has to
+        // come off every rectangle before comparing and go back on afterwards.
+        var offset = new PixelVector(
+            (int)Math.Round(WidgetWindow.GlowMargin * WindowScaling(moving)),
+            (int)Math.Round(WidgetWindow.GlowMargin * WindowScaling(moving)));
+
+        var candidates = new List<PixelRect>(_widgets.Count);
+        var owners = new List<WidgetRuntime>(_widgets.Count);
+
+        foreach (var other in _widgets)
+        {
+            if (ReferenceEquals(other, moving) || !other.IsVisible)
+                continue;
+
+            if (!TryGetCardRect(other, offset, out var rect))
+                continue;
+
+            candidates.Add(rect);
+            owners.Add(other);
+        }
+
+        if (candidates.Count == 0)
+        {
+            ClearSnapHighlights();
+            return proposed;
+        }
+
+        var proposedCard = new PixelRect(proposed + offset, cardSize);
+        var result = WidgetSnapEngine.Snap(proposedCard, candidates);
+
+        ClearSnapHighlights();
+
+        if (result.Snapped)
+        {
+            // Each side lights the stretch it actually shares with the other, so
+            // the glow points at the specific region the two widgets have in
+            // common rather than vaguely at a whole edge.
+            moving.Window.SetSnapHighlight(result.Glow);
+
+            var settled = new PixelRect(result.Position, cardSize);
+
+            foreach (var index in result.Neighbours)
+            {
+                if (index < 0 || index >= owners.Count)
+                    continue;
+
+                owners[index].Window.SetSnapHighlight(
+                    WidgetSnapEngine.GlowSegments(candidates[index], [settled]));
+            }
+        }
+
+        return result.Position - offset;
+    }
+
+    private void ClearSnapHighlights()
+    {
+        foreach (var widget in _widgets)
+            widget.Window.SetSnapHighlight([]);
+    }
+
+    private void OnDragCompleted(WidgetRuntime runtime)
+    {
+        ClearSnapHighlights();
+        CapturePlacement(runtime);
+    }
+
+    private static double WindowScaling(WidgetRuntime runtime)
+    {
+        var scaling = runtime.Window.RenderScaling;
+        return scaling > 0 ? scaling : 1;
+    }
+
+    /// <summary>The widget's visible card size, in physical pixels.</summary>
+    private static bool TryGetCardSize(WidgetRuntime runtime, out PixelSize size)
+    {
+        size = default;
+
+        var card = runtime.Window.CardBounds;
+        if (card.Width <= 0 || card.Height <= 0)
+            return false;
+
+        var scaling = WindowScaling(runtime);
+        size = new PixelSize(
+            (int)Math.Round(card.Width * scaling),
+            (int)Math.Round(card.Height * scaling));
+
+        return true;
+    }
+
+    /// <summary>The widget's visible card rectangle, in physical screen pixels.</summary>
+    private static bool TryGetCardRect(WidgetRuntime runtime, PixelVector offset, out PixelRect rect)
+    {
+        rect = default;
+
+        if (!TryGetCardSize(runtime, out var size))
+            return false;
+
+        rect = new PixelRect(runtime.Window.Position + offset, size);
+        return true;
     }
 
     private WidgetPlacement CreatePlacement(IWidgetProvider provider)

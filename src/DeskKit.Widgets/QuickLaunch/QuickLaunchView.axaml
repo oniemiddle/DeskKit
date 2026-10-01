@@ -4,7 +4,7 @@
              x:Class="DeskKit.Widgets.QuickLaunch.QuickLaunchView"
              x:DataType="ql:QuickLaunchViewModel">
 
-    <Grid Margin="12,10">
+    <Grid Margin="12,18">
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>

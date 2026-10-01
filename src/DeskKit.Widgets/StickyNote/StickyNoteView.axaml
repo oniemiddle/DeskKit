@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:note="using:DeskKit.Widgets.StickyNote"
+             x:Class="DeskKit.Widgets.StickyNote.StickyNoteView"
+             x:DataType="note:StickyNoteViewModel">
+
+    <Border Background="{Binding PaperBrush}" CornerRadius="14">
+        <Grid Margin="16,12,16,14" RowDefinitions="Auto,*">
+            <TextBox Grid.Row="0"
+                     Classes="plain"
+                     FontSize="14"
+                     FontWeight="SemiBold"
+                     Foreground="#E61F2937"
+                     CaretBrush="#E61F2937"
+                     SelectionBrush="#552563EB"
+                     Text="{Binding Title}"
+                     PlaceholderText="标题" />
+
+            <TextBox Grid.Row="1"
+                     Margin="0,6,0,0"
+                     Classes="plain"
+                     AcceptsReturn="True"
+                     FontSize="{Binding NoteFontSize}"
+                     Foreground="#E61F2937"
+                     CaretBrush="#E61F2937"
+                     SelectionBrush="#552563EB"
+                     Text="{Binding Body}"
+                     TextWrapping="Wrap"
+                     VerticalContentAlignment="Top"
+                     PlaceholderText="记点什么…" />
+        </Grid>
+    </Border>
+</UserControl>

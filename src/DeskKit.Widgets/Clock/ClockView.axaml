@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:clock="using:DeskKit.Widgets.Clock"
+             x:Class="DeskKit.Widgets.Clock.ClockView"
+             x:DataType="clock:ClockViewModel">
+
+    <Grid Margin="16,12">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+            <TextBlock HorizontalAlignment="Center"
+                       Classes="widget-primary"
+                       FontSize="{Binding TimeFontSize}"
+                       FontWeight="SemiBold"
+                       Text="{Binding TimeText}" />
+
+            <TextBlock HorizontalAlignment="Center"
+                       Classes="widget-secondary"
+                       FontSize="{Binding DateFontSize}"
+                       IsVisible="{Binding ShowDate}"
+                       Text="{Binding DateText}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DeskKit.App.ViewModels"
+        x:Class="DeskKit.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="DeskKit 设置"
+        Width="660"
+        Height="540"
+        MinWidth="540"
+        MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+
+    <TabControl Margin="12">
+        <TabItem Header="外观">
+            <StackPanel Margin="10" Spacing="14">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="主题" FontWeight="SemiBold" />
+                    <ComboBox Width="200"
+                              HorizontalAlignment="Left"
+                              ItemsSource="{Binding ThemeOptions}"
+                              SelectedItem="{Binding Theme}" />
+                </StackPanel>
+
+                <CheckBox Content="显示桌面组件" IsChecked="{Binding WidgetsVisible}" />
+                <CheckBox Content="在通知区域显示图标" IsChecked="{Binding ShowTrayIcon}" />
+
+                <TextBlock MaxWidth="480"
+                           HorizontalAlignment="Left"
+                           TextWrapping="Wrap"
+                           Opacity="0.7"
+                           Text="组件会贴在壁纸上、位于所有普通窗口的下方。按 Win+D 或点击任务栏的“显示桌面”不会让它们消失。" />
+            </StackPanel>
+        </TabItem>
+
+        <TabItem Header="启动">
+            <StackPanel Margin="10" Spacing="14">
+                <CheckBox Content="开机时自动启动 DeskKit" IsChecked="{Binding StartWithWindows}" />
+                <TextBlock MaxWidth="480"
+                           HorizontalAlignment="Left"
+                           TextWrapping="Wrap"
+                           Opacity="0.7"
+                           Text="在当前用户的启动项中注册，不需要管理员权限，也可以随时在任务管理器的“启动”页里关闭。" />
+            </StackPanel>
+        </TabItem>
+
+        <TabItem Header="组件">
+            <Grid Margin="10" ColumnDefinitions="240,*">
+                <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" Spacing="8">
+                        <ComboBox HorizontalAlignment="Stretch"
+                                  ItemsSource="{Binding AvailableWidgets}"
+                                  SelectedItem="{Binding SelectedAvailableWidget}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:WidgetOption">
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <Button HorizontalAlignment="Stretch"
+                                Content="添加组件"
+                                Command="{Binding AddSelectedWidgetCommand}" />
+
+                        <Button HorizontalAlignment="Stretch"
+                                Content="移除选中组件"
+                                Command="{Binding RemoveSelectedWidgetCommand}"
+                                IsEnabled="{Binding CanRemoveSelectedWidget}" />
+                    </StackPanel>
+
+                    <ListBox ItemsSource="{Binding Widgets}" SelectedItem="{Binding SelectedWidget}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:WidgetRow">
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+
+                <Border Grid.Column="1"
+                        Padding="14"
+                        BorderThickness="1"
+                        BorderBrush="#22808080"
+                        CornerRadius="8">
+                    <ContentControl Content="{Binding WidgetSettingsView}" />
+                </Border>
+            </Grid>
+        </TabItem>
+    </TabControl>
+</Window>

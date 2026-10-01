@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ql="using:DeskKit.Widgets.QuickLaunch"
+             x:Class="DeskKit.Widgets.QuickLaunch.QuickLaunchSettingsView"
+             x:DataType="ql:QuickLaunchViewModel">
+
+    <StackPanel Spacing="14">
+        <TextBlock FontWeight="SemiBold" Text="快捷启动器" />
+
+        <TextBlock Opacity="0.7"
+                   TextWrapping="Wrap"
+                   Text="把文件、快捷方式或文件夹直接拖到桌面上的启动器里即可添加。" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Name="BrowseButton" Content="添加文件…" Click="OnBrowseClick" />
+            <TextBox Name="UrlBox" Width="200" PlaceholderText="或输入网址" />
+            <Button Content="添加网址" Click="OnAddUrlClick" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="图标大小" />
+            <Slider Minimum="20"
+                    Maximum="72"
+                    TickFrequency="2"
+                    IsSnapToTickEnabled="True"
+                    Value="{Binding IconSize}" />
+        </StackPanel>
+
+        <TextBlock Text="已添加的条目" FontWeight="SemiBold" />
+
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="ql:QuickLaunchItemViewModel">
+                    <Grid Margin="0,2" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="0">
+                            <TextBlock Text="{Binding DisplayName}" />
+                            <TextBlock Opacity="0.6"
+                                       FontSize="11"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding Target}" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="移除"
+                                Command="{Binding RemoveFromWidgetCommand}" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

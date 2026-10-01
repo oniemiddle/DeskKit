@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DeskKit.App.Views.WidgetWindow"
+        Title="DeskKit widget"
+        Width="260"
+        Height="160"
+        MinWidth="120"
+        MinHeight="80"
+        WindowDecorations="None"
+        CanResize="False"        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+    <!-- The window itself is fully transparent; only the rounded card is drawn,
+         which is what keeps the widget free of a rectangular backdrop. -->
+    <Grid>
+        <Border Name="CardBorder"
+                Background="#FF2563EB"
+                CornerRadius="14"
+                ClipToBounds="True"
+                BoxShadow="0 8 28 0 #66000000">
+            <ContentPresenter Name="ContentHost" />
+        </Border>
+
+        <Border Name="ResizeGrip"
+                Width="18"
+                Height="18"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Background="Transparent"
+                Cursor="BottomRightCorner" />
+    </Grid>
+</Window>

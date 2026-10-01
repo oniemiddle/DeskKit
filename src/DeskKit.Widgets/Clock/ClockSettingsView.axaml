@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:clock="using:DeskKit.Widgets.Clock"
+             x:Class="DeskKit.Widgets.Clock.ClockSettingsView"
+             x:DataType="clock:ClockViewModel">
+
+    <StackPanel Spacing="14">
+        <TextBlock FontWeight="SemiBold" Text="时钟" />
+
+        <CheckBox Content="24 小时制" IsChecked="{Binding Use24Hour}" />
+        <CheckBox Content="显示秒" IsChecked="{Binding ShowSeconds}" />
+        <CheckBox Content="显示日期" IsChecked="{Binding ShowDate}" />
+        <CheckBox Content="显示星期" IsChecked="{Binding ShowWeekday}" />
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="时间字号" />
+            <Slider Minimum="18"
+                    Maximum="88"
+                    TickFrequency="2"
+                    IsSnapToTickEnabled="True"
+                    Value="{Binding TimeFontSize}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

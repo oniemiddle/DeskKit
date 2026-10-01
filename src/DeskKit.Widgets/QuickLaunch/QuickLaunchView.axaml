@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ql="using:DeskKit.Widgets.QuickLaunch"
+             x:Class="DeskKit.Widgets.QuickLaunch.QuickLaunchView"
+             x:DataType="ql:QuickLaunchViewModel">
+
+    <Grid Margin="12,10">
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="ql:QuickLaunchItemViewModel">
+                    <Button Classes="quick-launch" Command="{Binding LaunchCommand}">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="打开" Command="{Binding LaunchCommand}" />
+                                <MenuItem Header="移除" Command="{Binding RemoveFromWidgetCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+
+                        <StackPanel Width="{Binding IconSize}" Spacing="4">
+                            <Image Width="{Binding IconSize}"
+                                   Height="{Binding IconSize}"
+                                   HorizontalAlignment="Center"
+                                   Source="{Binding Icon}" />
+
+                            <TextBlock Classes="widget-secondary"
+                                       FontSize="10"
+                                       TextAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding DisplayName}" />
+                        </StackPanel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Classes="widget-secondary"
+                   FontSize="12"
+                   IsVisible="{Binding IsEmpty}"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Text="把文件、快捷方式或文件夹拖到这里" />
+    </Grid>
+</UserControl>

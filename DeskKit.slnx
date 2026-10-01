@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeskKit.App/DeskKit.App.csproj" />
+    <Project Path="src/DeskKit.Core/DeskKit.Core.csproj" />
+    <Project Path="src/DeskKit.Platform/DeskKit.Platform.csproj" />
+    <Project Path="src/DeskKit.Widgets/DeskKit.Widgets.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeskKit.Core.Tests/DeskKit.Core.Tests.csproj" />
+    <Project Path="tests/DeskKit.Platform.Tests/DeskKit.Platform.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed only so the Shell icon loader can hand back an Avalonia bitmap. -->
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>

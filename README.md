@@ -139,8 +139,9 @@ the far side of the desktop purely because they happened to share an edge, which
 reads as global grid alignment rather than as two widgets placed together.
 
 Snapping is measured between **cards, not windows**. The window carries a
-transparent margin for the glow, and measuring that instead would leave two
-snapped widgets 32px apart on screen while the code believed the gap was 8.
+transparent margin so the card's drop shadow has room, and measuring that instead
+would leave two snapped widgets 32px apart on screen while the code believed the
+gap was 8.
 
 #### The magnetism glow
 
@@ -157,7 +158,15 @@ really covers is lit. So:
   nearest end is lit instead, so a diagonal placement still reads as attached.
 
 Segments are expressed as fractions of the card, so they stay correct when the
-widget is resized.
+widget is resized. A segment describes **where** the light is, not how far it
+reaches: the renderer adds the spread.
+
+The glow is a **surface effect on the card**. It is the same idea as the halo a
+card shows in a web UI when the pointer comes near it — a soft light that answers
+to something touching the card — except that the thing it answers to is a
+neighbouring widget rather than the cursor. Like that halo it is clipped to the
+card's own rounded outline and never reaches past it, so the widget itself is what
+lights up and nothing spills into the gap between the two cards.
 
 It is drawn by `WidgetGlowLayer`, a hand-drawn decoration layer rather than a
 set of borders, because the shape is not expressible with borders: one edge can
@@ -165,24 +174,39 @@ be lit in several stretches, several edges can be lit at once, and each stretch
 needs a gradient that fades away from the shared edge while also softening at its
 two ends. A border carries one brush, and one brush cannot fade along two axes.
 
-The layer is never hit-testable and takes no layout space.
+The layer lives inside the card, is never hit-testable and takes no layout space.
 
-The fade reaches `WidgetGlowLayer.DefaultFadeLength` (14 DIP) inwards from the
-edge. Because that fade is short, a fully opaque edge colour reads as a painted
-stripe rather than as light spilling in from the neighbouring widget, so two
-things shape it:
+The shared region is treated as the **position of a light source**, not as the
+extent of the glow. Two things follow from that:
+
+- **Along the edge** the light reaches `SpreadAlongEdge` (28 DIP) beyond the
+  shared region at each end, fading out over that reach. Without it the glow stops
+  dead where the widgets stop overlapping, which reads as a painted rectangle
+  rather than as illumination.
+- **Across the edge** the light starts at full strength on the shared edge and
+  decays *inwards* over `HorizontalFadeLength` / `VerticalFadeLength`. The edge
+  itself is where the light is brightest, which is what makes the two cards read
+  as joined; the falloff is what keeps it from looking like a painted stripe.
+
+The fade is directional. A vertical stretch fades across the card's width, which
+is its long side, so a fade that looks right on a top or bottom edge looks like a
+tight stripe on a left or right one: `HorizontalFadeLength` (30 DIP) exceeds
+`VerticalFadeLength` (18 DIP).
+
+Because the fade is short, a fully opaque edge colour reads as a painted stripe
+rather than as light, so the intensity is shaped too:
 
 - `EdgeOpacity` (0.6) sets the alpha at the shared edge — deliberately well below
   opaque.
-- `FalloffExponent` (1.5) bends the falloff. Light decays faster near its source,
-  so a linear ramp looks like a wedge; sampling an ease-out curve gives a decay of
-  roughly 153 → 99 → 54 → 19 → 0 over the fade, instead of 255 → 191 → 128 → 64 → 0.
+- `FalloffExponent` (1.5) bends every ramp — the fade into the card and the
+  reach along it. Light decays faster near its source, so a linear ramp looks like
+  a wedge; sampling an ease-out curve gives a decay of roughly 153 → 99 → 54 → 19
+  → 0 over the fade, instead of 255 → 191 → 128 → 64 → 0.
 
-That direction is also why the card is inset inside its window by
-`WidgetWindow.GlowMargin`. Anything a window paints outside itself is clipped, so
-the window has to be larger than the card for the card's own drop shadow to be
-visible at all. Stored placements describe the visible card, so the margin never
-leaks into the saved layout.
+The card is inset inside its window by `WidgetWindow.GlowMargin`. Anything a
+window paints outside itself is clipped, so the window has to be larger than the
+card for the card's own drop shadow to be visible at all. Stored placements
+describe the visible card, so the margin never leaks into the saved layout.
 
 #### Dragging
 

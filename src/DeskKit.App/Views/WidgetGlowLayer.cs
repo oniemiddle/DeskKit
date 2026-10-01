@@ -6,15 +6,21 @@ using DeskKit.Core.Models;
 namespace DeskKit.App.Views;
 
 /// <summary>
-/// Draws the magnetism glow as a decoration layer over the card.
+/// Draws the magnetism glow on the card's own surface.
+/// <para>
+/// This is the same idea as the halo a card shows in a web UI when the pointer
+/// comes near it — a soft light that answers to something touching the card —
+/// except that here the thing it answers to is a neighbouring widget rather than
+/// the cursor. Like that halo it lives entirely on the card: it is clipped to the
+/// card's rounded outline and never reaches past it, so the widget itself is what
+/// lights up.
+/// </para>
 /// <para>
 /// It is hand-drawn rather than assembled from borders because the shape is not
-/// expressible that way: the glow follows the region two widgets actually share,
-/// so a single edge can be lit in several separate stretches, several edges can
-/// be lit at once, and every stretch needs its own gradient running from the
-/// theme colour at the shared edge to transparent further in. A border can only
-/// carry one brush, and one brush cannot fade along one axis while also fading
-/// along another.
+/// expressible that way. The light comes from the region the two widgets share,
+/// so on a vertical edge the intensity peaks along the shared stretch and decays
+/// both inwards across the card and along the edge past the ends of that stretch.
+/// One brush cannot fade along two axes, and a border carries one brush.
 /// </para>
 /// <para>
 /// Segments arrive as fractions of the card, so the glow stays correct when the
@@ -23,18 +29,30 @@ namespace DeskKit.App.Views;
 /// </summary>
 public sealed class WidgetGlowLayer : Control
 {
-    /// <summary>How far the glow reaches inwards from the edge, in DIPs.</summary>
-    public const double DefaultFadeLength = 14;
+    /// <summary>
+    /// How far the glow reaches inwards from the shared edge when it runs
+    /// vertically, in DIPs. Such a stretch fades across the card's width, which
+    /// is its long side, so it needs more room than a horizontal one before it
+    /// looks equally soft.
+    /// </summary>
+    public const double DefaultHorizontalFadeLength = 30;
 
-    /// <summary>Softening applied to the ends of a stretch, in DIPs.</summary>
-    public const double DefaultEndSoftness = 7;
+    /// <summary>How far the glow reaches inwards from the shared edge when it runs horizontally, in DIPs.</summary>
+    public const double DefaultVerticalFadeLength = 18;
 
     /// <summary>
-    /// Values of the normalised distance from the shared edge at which the
-    /// falloff is sampled. A handful of stops is enough to shape the curve, and
-    /// the renderer interpolates the rest.
+    /// How far the light reaches along the edge beyond the region the two widgets
+    /// share, in DIPs.
+    /// <para>
+    /// The shared stretch is where the light comes from, not how far it reaches.
+    /// Without this the glow stops dead at the ends of the shared region, which
+    /// reads as a painted rectangle rather than as light.
+    /// </para>
     /// </summary>
-    private static readonly double[] FalloffSamples = [0, 0.25, 0.5, 0.75, 1];
+    public const double DefaultSpreadAlongEdge = 28;
+
+    /// <summary>How many steps are used to approximate the falloff curves.</summary>
+    private const int CurveSteps = 16;
 
     private IReadOnlyList<WidgetGlowSegment> _segments = [];
 
@@ -57,20 +75,37 @@ public sealed class WidgetGlowLayer : Control
     public Color GlowColor { get; set; } = Color.Parse("#FF5B8DEF");
 
     /// <summary>
-    /// Opacity at the shared edge itself. Deliberately well below fully opaque:
-    /// the fade is short, so a solid edge colour reads as a painted stripe rather
-    /// than as light spilling across from the neighbouring widget.
+    /// Opacity where the light is at its strongest, on the shared edge itself.
+    /// Deliberately well below fully opaque: a solid colour reads as a painted
+    /// stripe rather than as light falling on the surface.
     /// </summary>
     public double EdgeOpacity { get; set; } = 0.6;
 
     /// <summary>
     /// Shape of the falloff. Light decays faster near its source, so a linear
-    /// ramp looks like a wedge; an exponent above 1 drops quickly at the edge and
-    /// then tapers, which reads as a more natural spill.
+    /// ramp looks like a wedge; an exponent above 1 drops quickly at the source
+    /// and then tapers, which reads as a more natural spill. It is applied to
+    /// both the fade into the card and the reach along the edge, so the two
+    /// directions agree.
     /// </summary>
     public double FalloffExponent { get; set; } = 1.5;
 
-    /// <summary>Alpha actually used at the shared edge, after clamping.</summary>
+    /// <summary>Reach of the glow inwards from a vertical edge, in DIPs.</summary>
+    public double HorizontalFadeLength { get; set; } = DefaultHorizontalFadeLength;
+
+    /// <summary>Reach of the glow inwards from a horizontal edge, in DIPs.</summary>
+    public double VerticalFadeLength { get; set; } = DefaultVerticalFadeLength;
+
+    /// <summary>How far the light reaches along the edge beyond the shared region, in DIPs.</summary>
+    public double SpreadAlongEdge { get; set; } = DefaultSpreadAlongEdge;
+
+    /// <summary>
+    /// The card's corner radius. The glow is clipped to the card's outline, so
+    /// it stops at the rounded corners rather than squaring off across them.
+    /// </summary>
+    public double CardCornerRadius { get; set; } = 14;
+
+    /// <summary>Alpha actually used where the light is strongest, after clamping.</summary>
     public byte EdgeAlpha =>
         (byte)Math.Round(255 * Math.Clamp(EdgeOpacity, 0, 1));
 
@@ -85,82 +120,103 @@ public sealed class WidgetGlowLayer : Control
         if (size.Width <= 0 || size.Height <= 0)
             return;
 
-        foreach (var segment in _segments)
+        // The glow belongs to the card's surface, so nothing may escape it. The
+        // card's own outline is the clip, which is also what keeps the reach
+        // along the edge from running off the corners.
+        using (context.PushGeometryClip(BuildCardClip(size)))
         {
-            switch (segment.Edge)
+            foreach (var segment in _segments)
             {
-                case WidgetEdge.Left:
-                    DrawVertical(context, size, segment, fromRight: false);
-                    break;
+                switch (segment.Edge)
+                {
+                    case WidgetEdge.Left:
+                        DrawVertical(context, size, segment, fromRight: false);
+                        break;
 
-                case WidgetEdge.Right:
-                    DrawVertical(context, size, segment, fromRight: true);
-                    break;
+                    case WidgetEdge.Right:
+                        DrawVertical(context, size, segment, fromRight: true);
+                        break;
 
-                case WidgetEdge.Top:
-                    DrawHorizontal(context, size, segment, fromBottom: false);
-                    break;
+                    case WidgetEdge.Top:
+                        DrawHorizontal(context, size, segment, fromBottom: false);
+                        break;
 
-                case WidgetEdge.Bottom:
-                    DrawHorizontal(context, size, segment, fromBottom: true);
-                    break;
+                    case WidgetEdge.Bottom:
+                        DrawHorizontal(context, size, segment, fromBottom: true);
+                        break;
+                }
             }
         }
     }
 
+    /// <summary>The card's own outline, which is the whole area the glow may use.</summary>
+    private RectangleGeometry BuildCardClip(Size size) =>
+        new(new Rect(0, 0, size.Width, size.Height))
+        {
+            RadiusX = CardCornerRadius,
+            RadiusY = CardCornerRadius,
+        };
+
     /// <summary>Draws a stretch along a vertical edge.</summary>
     private void DrawVertical(DrawingContext context, Size size, WidgetGlowSegment segment, bool fromRight)
     {
-        var length = segment.Length * size.Height;
-        if (length <= 0)
+        var fade = Math.Clamp(HorizontalFadeLength, 0, size.Width);
+        if (fade <= 0)
             return;
 
-        var y = segment.Start * size.Height;
-        var fade = Math.Min(DefaultFadeLength, size.Width);
+        var shared = segment.Length * size.Height;
+        if (shared <= 0)
+            return;
+
+        var spread = Math.Max(SpreadAlongEdge, 0);
+
+        // The band reaches inwards only, so it stays on the card.
         var x = fromRight ? size.Width - fade : 0;
+        var y = (segment.Start * size.Height) - spread;
+        var area = new Rect(x, y, fade, shared + (spread * 2));
 
-        var area = new Rect(x, y, fade, length);
-
-        // Fades inwards, away from the shared edge.
-        var edgeFade = BuildEdgeFade(
+        var across = BuildAcrossFade(
             startX: fromRight ? 1 : 0, startY: 0,
             endX: fromRight ? 0 : 1, endY: 0);
 
-        using (context.PushOpacityMask(BuildEndMask(area, length, vertical: true), area))
+        using (context.PushOpacityMask(BuildAlongMask(shared, spread, vertical: true), area))
         {
-            context.FillRectangle(edgeFade, area);
+            context.FillRectangle(across, area);
         }
     }
 
     /// <summary>Draws a stretch along a horizontal edge.</summary>
     private void DrawHorizontal(DrawingContext context, Size size, WidgetGlowSegment segment, bool fromBottom)
     {
-        var length = segment.Length * size.Width;
-        if (length <= 0)
+        var fade = Math.Clamp(VerticalFadeLength, 0, size.Height);
+        if (fade <= 0)
             return;
 
-        var x = segment.Start * size.Width;
-        var fade = Math.Min(DefaultFadeLength, size.Height);
+        var shared = segment.Length * size.Width;
+        if (shared <= 0)
+            return;
+
+        var spread = Math.Max(SpreadAlongEdge, 0);
+
+        var x = (segment.Start * size.Width) - spread;
         var y = fromBottom ? size.Height - fade : 0;
+        var area = new Rect(x, y, shared + (spread * 2), fade);
 
-        var area = new Rect(x, y, length, fade);
-
-        var edgeFade = BuildEdgeFade(
+        var across = BuildAcrossFade(
             startX: 0, startY: fromBottom ? 1 : 0,
             endX: 0, endY: fromBottom ? 0 : 1);
 
-        using (context.PushOpacityMask(BuildEndMask(area, length, vertical: false), area))
+        using (context.PushOpacityMask(BuildAlongMask(shared, spread, vertical: false), area))
         {
-            context.FillRectangle(edgeFade, area);
+            context.FillRectangle(across, area);
         }
     }
 
     /// <summary>
-    /// The gradient that carries the glow from the shared edge inwards. Sampled
-    /// along an ease-out curve rather than a straight ramp, so the light falls
-    /// away the way light actually does.
+    /// The fade into the card, running from the shared edge inwards. It starts at
+    /// full strength on the edge and decays away from it on the shaped curve.
     /// </summary>
-    private LinearGradientBrush BuildEdgeFade(double startX, double startY, double endX, double endY)
+    private LinearGradientBrush BuildAcrossFade(double startX, double startY, double endX, double endY)
     {
         var brush = new LinearGradientBrush
         {
@@ -168,40 +224,71 @@ public sealed class WidgetGlowLayer : Control
             EndPoint = new RelativePoint(endX, endY, RelativeUnit.Relative),
         };
 
-        foreach (var distance in FalloffSamples)
+        for (var step = 0; step <= CurveSteps; step++)
         {
+            var distance = step / (double)CurveSteps;
             var fade = Math.Pow(1 - distance, Math.Max(FalloffExponent, 0));
-            var alpha = (byte)Math.Round(EdgeAlpha * fade);
 
             brush.GradientStops.Add(new GradientStop(
-                Color.FromArgb(alpha, GlowColor.R, GlowColor.G, GlowColor.B), distance));
+                WithAlpha(fade), distance));
         }
 
         return brush;
     }
 
     /// <summary>
-    /// A mask that softens the two ends of a stretch, so a partly lit edge does
-    /// not stop with a hard edge. The ramp is capped in absolute terms, because a
-    /// proportional ramp would wash out a short stretch completely.
+    /// The reach along the edge. It holds at full strength across the region the
+    /// two widgets share and ramps away over the spread at either end, so the
+    /// shared region decides where the light is but not how far it travels. The
+    /// ramp uses the same curve as the fade into the card, so the two directions
+    /// look like one effect.
     /// </summary>
-    private static LinearGradientBrush BuildEndMask(Rect area, double length, bool vertical)
+    private LinearGradientBrush BuildAlongMask(double sharedLength, double spread, bool vertical)
     {
-        var ramp = Math.Min(0.5, DefaultEndSoftness / Math.Max(length, 1));
-
         var mask = new LinearGradientBrush
         {
-            StartPoint = new RelativePoint(0, vertical ? 0 : 1, RelativeUnit.Relative),
+            StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
             EndPoint = new RelativePoint(vertical ? 0 : 1, vertical ? 1 : 0, RelativeUnit.Relative),
-            GradientStops =
-            {
-                new GradientStop(Colors.Transparent, 0),
-                new GradientStop(Colors.White, ramp),
-                new GradientStop(Colors.White, 1 - ramp),
-                new GradientStop(Colors.Transparent, 1),
-            },
         };
+
+        var total = sharedLength + (spread * 2);
+        var ramp = total > 0 ? Math.Clamp(spread / total, 0, 0.5) : 0;
+        var shape = Math.Max(FalloffExponent, 0);
+
+        for (var step = 0; step <= CurveSteps; step++)
+        {
+            var offset = step / (double)CurveSteps;
+
+            double amount;
+            if (ramp <= 0)
+            {
+                amount = 1;
+            }
+            else if (offset < ramp)
+            {
+                amount = Math.Pow(offset / ramp, shape);
+            }
+            else if (offset > 1 - ramp)
+            {
+                amount = Math.Pow((1 - offset) / ramp, shape);
+            }
+            else
+            {
+                amount = 1;
+            }
+
+            var alpha = (byte)Math.Round(255 * Math.Clamp(amount, 0, 1));
+            mask.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, 255, 255, 255), offset));
+        }
 
         return mask;
     }
+
+    /// <summary>The glow colour at a fraction of its full strength.</summary>
+    private Color WithAlpha(double amount) =>
+        Color.FromArgb(
+            (byte)Math.Round(EdgeAlpha * Math.Clamp(amount, 0, 1)),
+            GlowColor.R,
+            GlowColor.G,
+            GlowColor.B);
 }

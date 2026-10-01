@@ -17,12 +17,13 @@
     <!-- MinWidth/MinHeight are window sizes, as Avalonia defines them. The shell
          converts a widget's minimum card size with WindowSizeForCard before
          assigning them, and these defaults are the card minimum plus the glow
-         margin on both sides. -->
+         margin on both sides.
 
-    <!-- The window itself is fully transparent; only the rounded card is drawn.
          The card is inset by GlowMargin so its own drop shadow has room to
-         render: anything painted outside the window is clipped. -->
-    <Grid>        <Border Name="CardBorder"
+         render. Everything visual lives inside the card, because whatever a
+         window paints outside itself is clipped anyway. -->
+    <Grid>
+        <Border Name="CardBorder"
                 Margin="16"
                 Background="#FF2563EB"
                 CornerRadius="14"
@@ -55,13 +56,15 @@
                             Opacity="0" />
                 </Border>
 
-                <!-- Magnetism feedback. A decoration layer, drawn in code because
-                     the shape is not expressible with borders: the glow follows
-                     the region two widgets actually share, so one edge can be lit
-                     in several separate stretches and several edges can be lit at
-                     once, each with its own gradient fading away from the shared
-                     edge. -->
-                <views:WidgetGlowLayer Name="SnapGlow" IsHitTestVisible="False" IsVisible="False" />
+                <!-- Magnetism feedback, drawn in code because the shape is not
+                     expressible with borders: the light comes from the region two
+                     widgets share, so it peaks along that stretch and decays both
+                     inwards across the card and along the edge past its ends. It
+                     is clipped to the card's outline, so it only ever lights the
+                     card's own surface. -->
+                <views:WidgetGlowLayer Name="SnapGlow"
+                                       IsHitTestVisible="False"
+                                       IsVisible="False" />
             </Panel>
         </Border>
     </Grid>

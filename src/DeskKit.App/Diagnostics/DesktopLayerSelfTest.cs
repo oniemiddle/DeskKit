@@ -810,6 +810,16 @@ internal sealed class DesktopLayerSelfTest
             _ => false,
         };
 
+    /// <summary>
+    /// True when the second rectangle lies inside the first, allowing for the
+    /// rounding that layout arithmetic introduces.
+    /// </summary>
+    private static bool IsContainedIn(Rect outer, Rect inner) =>
+        inner.Left >= outer.Left - 0.5
+        && inner.Top >= outer.Top - 0.5
+        && inner.Right <= outer.Right + 0.5
+        && inner.Bottom <= outer.Bottom + 0.5;
+
     private static string DescribeBrush(IBrush? brush) =>
         brush switch
         {
@@ -916,9 +926,8 @@ internal sealed class DesktopLayerSelfTest
                 Check($"[{name}] the bar casts a shadow so it stays visible on light backgrounds",
                     window.DragBarShadowCount > 0, $"shadows={window.DragBarShadowCount}");
 
-                // The glow has to be able to spread, which means the card cannot
-                // fill the window.
-                Check($"[{name}] the card is inset, leaving the halo room to spread",
+                // The card is inset so its own drop shadow has room to render.
+                Check($"[{name}] the card is inset so its drop shadow has room",
                     card.Width < window.Bounds.Width && card.Height < window.Bounds.Height,
                     $"card={card.Width}x{card.Height} window={window.Bounds.Width}x{window.Bounds.Height}");
 
@@ -929,9 +938,26 @@ internal sealed class DesktopLayerSelfTest
                     !window.SnapGlowHitTestable);
 
                 // The fade has to be a soft edge, not a wash across the widget.
+                // A vertical stretch fades across the card's width, which is its
+                // long side, so it is given more room than a horizontal one.
                 Check($"[{name}] the glow fades out over a short distance",
-                    window.GlowFadeLength is > 0 and <= 20,
-                    $"fade={window.GlowFadeLength} DIP");
+                    window.GlowVerticalFadeLength is > 0 and <= 20
+                    && window.GlowHorizontalFadeLength is > 0 and <= 40,
+                    $"vertical={window.GlowVerticalFadeLength} horizontal={window.GlowHorizontalFadeLength} DIP");
+
+                Check($"[{name}] a vertical stretch gets a wider horizontal fade than a horizontal one",
+                    window.GlowHorizontalFadeLength > window.GlowVerticalFadeLength,
+                    $"horizontal={window.GlowHorizontalFadeLength} vertical={window.GlowVerticalFadeLength}");
+
+                // The glow is a surface effect: it lights the card, it does not
+                // spill around it the way an outer glow would.
+                // The check is made further down, once the layer is visible and
+                // therefore has been laid out.
+
+                // The shared region is where the light is, not how far it reaches.
+                Check($"[{name}] the light reaches along the edge beyond the shared region",
+                    window.GlowSpreadAlongEdge is >= 8 and <= 60,
+                    $"spread={window.GlowSpreadAlongEdge} DIP");
 
                 // With a fade this short, a solid edge colour reads as a painted
                 // stripe rather than as light spilling in.
@@ -960,6 +986,26 @@ internal sealed class DesktopLayerSelfTest
                     Math.Abs(window.GlowSegments[0].Start - 0.25) < 0.001
                     && Math.Abs(window.GlowSegments[0].Length - 0.5) < 0.001,
                     Describe(window.GlowSegments));
+
+                // Now that the glow is visible it has been laid out, so its own
+                // rectangle can be compared with the card's. The layer is inside
+                // the card precisely so the light cannot escape it. The layer is
+                // collapsed while hidden, so it needs a frame to be arranged.
+                await Delay(150);
+
+                var glow = window.GlowBounds;
+                var glowReport = $"card={card} glow={glow}";
+
+                Check($"[{name}] the magnetism glow paints only on the card's surface",
+                    IsContainedIn(card, glow),
+                    glowReport);
+
+                Check($"[{name}] the glow layer shares the card's rectangle",
+                    Math.Abs(glow.Left - card.Left) < 0.5
+                    && Math.Abs(glow.Top - card.Top) < 0.5
+                    && Math.Abs(glow.Width - card.Width) < 0.5
+                    && Math.Abs(glow.Height - card.Height) < 0.5,
+                    glowReport);
 
                 window.SetSnapHighlight([]);
                 Check($"[{name}] the magnetism glow can be turned off",

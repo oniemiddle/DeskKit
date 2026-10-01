@@ -99,16 +99,20 @@ public partial class WidgetWindow : Window
     public CornerRadius CardCornerRadius
     {
         get => CardBorder.CornerRadius;
+        set
+        {
+            CardBorder.CornerRadius = value;
 
-        // The glow is clipped by the card, so it follows the card's radius
-        // automatically and needs no separate handling.
-        set => CardBorder.CornerRadius = value;
+            // The glow is clipped to the card's outline, so it has to follow the
+            // card's radius.
+            SnapGlow.CardCornerRadius = value.TopLeft;
+        }
     }
 
     /// <summary>
     /// Transparent space kept around the card so its drop shadow has room to
-    /// render. The shadow is clipped by the window, so a non-zero margin is
-    /// what makes it visible.
+    /// render. Nothing is painted out there, so the glow layer stays inside the
+    /// card and does not track this.
     /// </summary>
     public Thickness CardMargin
     {
@@ -172,8 +176,24 @@ public partial class WidgetWindow : Window
     /// <summary>The stretches of the card currently lit by the magnetism glow.</summary>
     public IReadOnlyList<WidgetGlowSegment> GlowSegments => SnapGlow.Segments;
 
-    /// <summary>How far the glow reaches inwards from the edge, in DIPs.</summary>
-    public double GlowFadeLength => WidgetGlowLayer.DefaultFadeLength;
+    /// <summary>Reach of the glow inwards from a vertical edge, in DIPs.</summary>
+    public double GlowHorizontalFadeLength => SnapGlow.HorizontalFadeLength;
+
+    /// <summary>Reach of the glow inwards from a horizontal edge, in DIPs.</summary>
+    public double GlowVerticalFadeLength => SnapGlow.VerticalFadeLength;
+
+    /// <summary>
+    /// How far the light reaches along the edge beyond the region the widgets
+    /// share. The shared region decides where the light is, not how far it goes.
+    /// </summary>
+    public double GlowSpreadAlongEdge => SnapGlow.SpreadAlongEdge;
+
+    /// <summary>
+    /// The rectangle the glow can paint on, in window coordinates. The glow is a
+    /// surface effect on the card, so this must sit inside the card — the
+    /// renderer additionally clips it to the card's rounded outline.
+    /// </summary>
+    public Rect GlowBounds => ToWindowBounds(SnapGlow);
 
     /// <summary>Alpha used at the shared edge; well below opaque on purpose.</summary>
     public byte GlowEdgeAlpha => SnapGlow.EdgeAlpha;

@@ -19,7 +19,7 @@ namespace DeskKit.App.Shell;
 /// nor can be covered by another window.
 /// </para>
 /// </remarks>
-internal sealed class StorageNoticePresenter(INoticePresenter notices, TrayIconController tray)
+internal sealed class StorageNoticePresenter(INoticePresenter notices, TrayIconController? tray)
 {
     public void Show(StoreLoadReport report)
     {
@@ -56,6 +56,6 @@ internal sealed class StorageNoticePresenter(INoticePresenter notices, TrayIconC
             title,
             string.Join(Environment.NewLine + Environment.NewLine, lines)));
 
-        tray.SetToolTip($"DeskKit — {title}");
+        tray?.SetToolTip($"DeskKit — {title}");
     }
 }

@@ -15,7 +15,7 @@ namespace DeskKit.App.Shell;
 /// manager. Keeping it here means the shell that runs widgets never has to know how a
 /// widget's name is spelled in the current language.
 /// </remarks>
-internal sealed class WidgetCatalog(WidgetRegistry registry)
+public sealed class WidgetCatalog(WidgetRegistry registry)
 {
     /// <summary>The widget types, in the order they should be offered.</summary>
     public IReadOnlyList<IWidgetProvider> Providers => registry.Providers;

@@ -32,14 +32,29 @@ public interface IShellFacade
     /// </summary>
     StoreLoadReport LoadReport { get; }
 
-    /// <summary>The widgets currently placed, with the names to show for them.</summary>
-    IReadOnlyList<WidgetInfo> Widgets { get; }
+    /// <summary>
+    /// Raised for every widget as it appears, before it is shown. The product is what
+    /// hangs its own chrome on the window; the runtime never builds a menu.
+    /// </summary>
+    event EventHandler<WidgetRuntime>? WidgetAdded;
+
+    /// <summary>
+    /// Raised when a widget asks for its own settings. The runtime owns no settings
+    /// window, so the product answers this.
+    /// </summary>
+    event EventHandler<WidgetViewModel>? SettingsRequested;
+
+    /// <summary>
+    /// The widgets currently placed. What to call one is the product's to resolve, so no
+    /// display name is carried here.
+    /// </summary>
+    IReadOnlyList<WidgetRuntime> Runtimes { get; }
 
     /// <summary>The widget types this build can add.</summary>
     IReadOnlyList<IWidgetProvider> AvailableWidgets { get; }
 
     /// <summary>Places a new widget of the given type.</summary>
-    WidgetInfo? AddWidget(IWidgetProvider provider);
+    WidgetRuntime? AddWidget(IWidgetProvider provider);
 
     /// <summary>Removes a placed widget.</summary>
     void RemoveWidget(WidgetViewModel widget);

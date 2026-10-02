@@ -89,6 +89,11 @@ internal sealed class TrayIconController(
         // leave a handler holding it alive.
         language.CultureChanged += OnCultureChanged;
 
+        // The stored preference is the only thing that decides whether the icon is
+        // there, so the icon follows the state rather than being told separately by
+        // whoever changed it.
+        shell.StateChanged += OnShellStateChanged;
+
         _icon = new TrayIcon
         {
             Icon = assets.Icon,
@@ -129,6 +134,7 @@ internal sealed class TrayIconController(
     public void Dispose()
     {
         language.CultureChanged -= OnCultureChanged;
+        shell.StateChanged -= OnShellStateChanged;
 
         if (_icon is null)
             return;
@@ -147,6 +153,13 @@ internal sealed class TrayIconController(
     }
 
     private void OnCultureChanged(object? sender, EventArgs e) => RefreshToggle();
+
+    /// <summary>Follows the stored preference, wherever it was changed from.</summary>
+    private void OnShellStateChanged(object? sender, EventArgs e)
+    {
+        SetVisible(shell.State.Settings.ShowTrayIcon);
+        RefreshToggle();
+    }
 
     private void RefreshToggle()
     {

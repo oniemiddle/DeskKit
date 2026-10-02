@@ -19,4 +19,4 @@ namespace DeskKit.Runtime;
 /// icon to draw. Nothing in the runtime resolves user-visible text itself.
 /// </para>
 /// </remarks>
-internal sealed record ShellEnvironment(WindowIcon? Icon, Action<string>? ApplyLanguage);
+public sealed record ShellEnvironment(WindowIcon? Icon, Action<string>? ApplyLanguage);

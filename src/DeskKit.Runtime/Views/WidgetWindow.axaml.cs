@@ -128,6 +128,9 @@ public partial class WidgetWindow : Window
     /// <summary>Attaches the widget's right-click menu.</summary>
     public void SetContextMenu(ContextMenu menu) => CardBorder.ContextMenu = menu;
 
+    /// <summary>The menu a right-click on the card brings up, so a test can see it.</summary>
+    internal ContextMenu? WidgetMenu => CardBorder.ContextMenu;
+
     /// <summary>The native window handle, or <see cref="IntPtr.Zero"/> before the window is shown.</summary>
     internal IntPtr Handle => TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
 

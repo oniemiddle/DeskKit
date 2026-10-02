@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using DeskKit.App.Services;
+using DeskKit.App.Shell;
 using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
@@ -273,21 +274,19 @@ internal sealed partial class DesktopLayerSelfTest
         StateStore? store = null,
         WidgetRegistry? registry = null,
         IDesktopLayerService? desktopLayer = null,
-        INoticePresenter? notices = null,
-        LanguageService? language = null,
         IWidgetMessageBus? messages = null,
-        TickService? ticks = null) =>
+        TickService? ticks = null,
+        IReadOnlyList<string>? firstRunWidgetIds = null) =>
         new(
             store ?? new StateStore(Path.Combine(directory, AppPaths.DatabaseFileName), directory),
             registry ?? BuiltInRegistry(),
             desktopLayer ?? new WindowsDesktopLayerService(),
-            new NullAutoStartService(),
             ticks ?? new TickService(),
             new ThemeService(),
             new NullWindowMaterialService(),
-            language ?? new LanguageService(),
-            notices ?? NullNoticePresenter.Instance,
+            new ShellEnvironment(new ShellAssets().Icon, ApplyLanguage: null),
             messages ?? new WidgetMessageBus(),
+            firstRunWidgetIds ?? DefaultLayout.WidgetIds,
             NullLogger<WidgetShell>.Instance);
 
     /// <summary>

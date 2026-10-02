@@ -5,7 +5,7 @@ using DeskKit.Core.Models;
 namespace DeskKit.Runtime;
 
 /// <summary>One placed widget: its stored placement, its view model and its window.</summary>
-internal sealed class WidgetRuntime(
+public sealed class WidgetRuntime(
     WidgetPlacement placement, WidgetViewModel viewModel, WidgetWindow window) : IPlaceableWidget
 {
     public WidgetPlacement Placement { get; set; } = placement;

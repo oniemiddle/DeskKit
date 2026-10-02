@@ -18,7 +18,8 @@ namespace DeskKit.App.Shell;
 internal sealed class SettingsWindowController(
     IShellFacade shell,
     ShellAssets assets,
-    LanguageService language)
+    LanguageService language,
+    WidgetCatalog catalog)
 {
     private SettingsWindow? _window;
 
@@ -49,7 +50,7 @@ internal sealed class SettingsWindowController(
         var window = new SettingsWindow
         {
             Icon = assets.Icon,
-            DataContext = new SettingsViewModel(shell, language),
+            DataContext = new SettingsViewModel(shell, language, catalog),
         };
 
         // Closing must not end the process, and the next Open has to build a new one

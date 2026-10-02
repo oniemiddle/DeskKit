@@ -1,70 +1,65 @@
 ﻿using Avalonia.Controls;
-using DeskKit.App.Localization;
-using DeskKit.App.Shell;
-using DeskKit.App.ViewModels;
-using DeskKit.App.Views;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
-using DeskKit.Platform;
-using Microsoft.Extensions.Logging;
-using DeskKit.Runtime;
 using DeskKit.Runtime.Views;
+using Microsoft.Extensions.Logging;
 
-namespace DeskKit.App.Services;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// The front door to the widgets: what the application starts, stops and asks for, and
 /// what the product's own UI talks to.
 /// </summary>
 /// <remarks>
-/// Every job this class used to do itself now lives in a collaborator under
-/// <c>DeskKit.App.Shell</c>: <see cref="WorkspaceState"/> owns the state,
-/// <see cref="WidgetRuntimeHost"/> owns the widget instances and their lifetimes, and the
-/// placement, appearance, tray, settings window, context menu and storage notice each own
-/// their own part. What is left here is the order a session starts in, the two interfaces
-/// the application and the widgets are written against, and the decisions that need more
-/// than one collaborator at once.
+/// Every job this class used to do itself lives in a collaborator: <see cref="WorkspaceState"/>
+/// owns the state, <see cref="WidgetRuntimeHost"/> the widget instances and their
+/// lifetimes, <see cref="PlacementController"/> the snapping rules,
+/// <see cref="AppearanceController"/> what the theme does to a live surface, and
+/// <see cref="ShellStartup"/> what a load report is worth saying. What is left is the
+/// order a session starts in, the interfaces the application and the widgets are written
+/// against, and the decisions that need more than one collaborator.
+/// <para>
+/// Nothing product-shaped is here. The tray icon, the settings window, the context menu,
+/// the storage notice and start-with-Windows are the application's, wired in the
+/// composition root; the runtime only says that a widget exists (<see cref="WidgetAdded"/>)
+/// and that a widget asked for its settings (<see cref="SettingsRequested"/>).
+/// </para>
 /// </remarks>
 public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 {
     private readonly WorkspaceState _workspace;
-    private readonly PlacementController _placement;
     private readonly WidgetRuntimeHost _runtimes;
-    private readonly WidgetCatalog _catalog;
-    private readonly ShellAssets _assets;
-    private readonly AutoStartController _autoStartPolicy;
+    private readonly WidgetRegistry _registry;
+    private readonly ShellStartup _startup;
+    private readonly ShellEnvironment _environment;
     private readonly AppearanceController _appearance;
-    private readonly LanguageService _language;
     private readonly IWidgetMessageBus _messages;
 
-    /// <summary>The material every widget window carries, already resolved.</summary>
+    // Resolved together before anything that consumes them: the material decides the
+    // inset, and both decide the layout of every window.
     private readonly WidgetMaterial _material;
-
-    /// <summary>Transparent inset each window keeps around its card for that material.</summary>
     private readonly double _surfaceMargin;
 
-    private readonly TrayIconController _tray;
-    private readonly SettingsWindowController _settings;
-    private readonly WidgetContextMenuFactory _contextMenus = new();
-    private readonly StorageNoticePresenter _storageNotices;
-    private readonly ShellStartup _startup;
+    /// <summary>The language last handed to the product, so it is not applied twice.</summary>
+    private string? _appliedLanguage;
 
     public WidgetShell(
         IStateStore stateStore,
         WidgetRegistry registry,
         IDesktopLayerService desktopLayer,
-        IAutoStartService autoStart,
         TickService tickService,
         ThemeService themeService,
         IWindowMaterialService materials,
-        LanguageService languageService,
-        INoticePresenter notices,
+        ShellEnvironment environment,
         IWidgetMessageBus messages,
+        IReadOnlyList<string> firstRunWidgetIds,
         ILogger<WidgetShell> logger)
     {
+        ArgumentNullException.ThrowIfNull(firstRunWidgetIds);
+
         var workspace = new WorkspaceState(stateStore, logger);
-        var assets = new ShellAssets();
+        var placement = new PlacementController(workspace);
 
         // Resolved before anything that consumes it is built: the material decides the
         // layout of every window and the brush every card is painted with, and it cannot
@@ -74,48 +69,52 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _surfaceMargin = WidgetWindow.MarginFor(_material);
 
         _workspace = workspace;
-        _placement = new PlacementController(workspace);
-        _catalog = new WidgetCatalog(registry);
-        _assets = assets;
-        _autoStartPolicy = new AutoStartController(autoStart, logger);
+        _registry = registry;
+        _environment = environment;
         _appearance = new AppearanceController(themeService);
-        _language = languageService;
         _messages = messages;
 
         _workspace.Changed += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
 
         _runtimes = new WidgetRuntimeHost(
             registry,
-            _placement,
+            placement,
             tickService,
             workspace,
             desktopLayer,
             _surfaceMargin,
-            new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets.Icon),
+            new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, environment.Icon),
             logger);
 
-        _startup = new ShellStartup(registry, DefaultLayout.WidgetIds, logger);
-        _settings = new SettingsWindowController(this, assets, languageService);
-        _tray = new TrayIconController(this, _catalog, assets, languageService, () => _settings.Open(null));
-        _storageNotices = new StorageNoticePresenter(notices, _tray);
+        _startup = new ShellStartup(registry, firstRunWidgetIds, logger);
     }
 
-    /// <summary>What the last load found, so the product can explain the session.</summary>
+    /// <summary>
+    /// What the last load found. The product is what explains a session that could not
+    /// read its stored state, and the runtime holds the answer.
+    /// </summary>
     public StoreLoadReport LoadReport => _workspace.LoadReport;
-
-    internal IReadOnlyList<WidgetRuntime> Runtimes => _runtimes.Runtimes;
 
     public AppState State => _workspace.State;
 
     /// <summary>Raised after persisted state changes so open UI can refresh.</summary>
     public event EventHandler? StateChanged;
 
-    public IReadOnlyList<WidgetInfo> Widgets =>
-        [.. _runtimes.Runtimes.Select(_catalog.Describe)];
+    /// <summary>
+    /// Raised for every widget as it appears, before it is shown, so the product can hang
+    /// its own chrome on the window. Not raised for one that failed to be created.
+    /// </summary>
+    public event EventHandler<WidgetRuntime>? WidgetAdded;
 
-    public IReadOnlyList<IWidgetProvider> AvailableWidgets => _catalog.Providers;
+    /// <summary>
+    /// Raised when a widget asks for its own settings. The runtime has no settings
+    /// window, so the product answers this.
+    /// </summary>
+    public event EventHandler<WidgetViewModel>? SettingsRequested;
 
-    // ---- IWidgetHost -----------------------------------------------------
+    public IReadOnlyList<WidgetRuntime> Runtimes => _runtimes.Runtimes;
+
+    public IReadOnlyList<IWidgetProvider> AvailableWidgets => _registry.Providers;
 
     public IReadOnlyList<ScreenBounds> Screens => ScreenProbe.GetScreens();
 
@@ -123,7 +122,9 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
     public void ShowSettings(WidgetViewModel widget)
     {
-        _settings.Open(widget);
+        ArgumentNullException.ThrowIfNull(widget);
+
+        SettingsRequested?.Invoke(this, widget);
     }
 
     public void RemoveWidget(WidgetViewModel widget)
@@ -135,28 +136,21 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     public void RequestSave() => _workspace.ScheduleSave();
 
     /// <summary>
-    /// True when the stored data belongs to a newer build. Nothing was read and
-    /// nothing may be written, so a session that carried on would show an empty
-    /// desktop and quietly keep none of it.
+    /// True when the stored data belongs to a newer build: nothing was read and nothing
+    /// may be written, so a session that carried on would show an empty desktop.
     /// </summary>
     public bool StoredDataIsNewer => _workspace.LoadReport.Outcome == StoreOutcome.NewerSchema;
-
-    // ---- Lifecycle -------------------------------------------------------
 
     public void Start()
     {
         _workspace.Load();
-
         _startup.ReportLoad(_workspace.LoadReport, _workspace.DatabasePath);
 
         _appearance.ApplyTheme(State.Settings.Theme);
 
         // Before any widget is created, so the first window it builds is already
         // titled in the right language.
-        _language.Apply(State.Settings.Language);
-
-        if (_autoStartPolicy.Reconcile(State.Settings) is { } corrected)
-            _workspace.ReplaceSettings(corrected);
+        ApplyLanguage(State.Settings.Language);
 
         // A migration reached the disk now rather than whenever something else happens
         // to change: one that only landed on exit would run again on every start until
@@ -174,53 +168,35 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
         // The stored placements are deliberately not normalised into State: a display
         // layout that cannot show a widget is this session's problem to solve, not a
-        // reason to overwrite the position the user chose. Doing it here is what used
-        // to make a layout degrade a little every time a laptop was undocked, and on
-        // a roaming profile it made two machines overwrite each other's. CreateWidget
-        // places the window where it can be seen instead.
+        // reason to overwrite the position the user chose. CreateWidget places the window
+        // where it can be seen instead.
         foreach (var placement in State.Widgets.Where(p => p.Enabled))
-            _runtimes.Add(placement, this, Screens, BuildContextMenu);
+            Add(placement);
 
         _runtimes.StartTicking();
-        _tray.Show();
-
-        _storageNotices.Show(_workspace.LoadReport);
     }
 
     public void Dispose()
     {
+        // The product's own windows and the tray are not the shell's to close.
         _workspace.Dispose();
         _runtimes.Dispose();
-        _tray.Dispose();
-        _settings.Close();
     }
 
-    // ---- Widget management ----------------------------------------------
-
-    public WidgetInfo? AddWidget(IWidgetProvider provider)
+    public WidgetRuntime? AddWidget(IWidgetProvider provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
 
-        if (_runtimes.Add(provider, this, Screens, BuildContextMenu) is not { } runtime)
+        if (_runtimes.Add(provider, this, Screens) is not { } runtime)
             return null;
+
+        WidgetAdded?.Invoke(this, runtime);
 
         _workspace.AddWidget(runtime.Placement);
         _workspace.RaiseChanged();
 
-        return _catalog.Describe(runtime);
+        return runtime;
     }
-
-    private void Remove(WidgetRuntime runtime)
-    {
-        _runtimes.Destroy(runtime);
-        _workspace.RemoveWidget(runtime.Placement.InstanceId);
-        _workspace.RaiseChanged();
-    }
-
-    private ContextMenu BuildContextMenu(WidgetRuntime runtime) =>
-        _contextMenus.Create(
-            openSettings: () => _settings.Open(runtime.ViewModel),
-            remove: () => Remove(runtime));
 
     public void ApplySettings(AppSettings settings)
     {
@@ -228,12 +204,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
         _workspace.ReplaceSettings(settings);
         _appearance.ApplyTheme(settings.Theme);
-
-        if (!string.Equals(_language.Setting, settings.Language, StringComparison.Ordinal))
-            _language.Apply(settings.Language);
-
-        _autoStartPolicy.Apply(settings);
-        _tray.SetVisible(settings.ShowTrayIcon);
+        ApplyLanguage(settings.Language);
         _appearance.ApplyCardSurfaces(_runtimes.Runtimes);
 
         _workspace.RaiseChanged();
@@ -244,5 +215,35 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _workspace.ReplaceSettings(State.Settings with { WidgetsVisible = visible });
         _runtimes.SetVisible(visible);
         _workspace.RaiseChanged();
+    }
+
+    /// <summary>
+    /// Creates one widget and tells the product it exists, before the window is shown:
+    /// whatever the product hangs on it is then in place from the first frame.
+    /// </summary>
+    private void Add(WidgetPlacement placement)
+    {
+        if (_runtimes.Add(placement, this, Screens) is { } runtime)
+            WidgetAdded?.Invoke(this, runtime);
+    }
+
+    private void Remove(WidgetRuntime runtime)
+    {
+        _runtimes.Destroy(runtime);
+        _workspace.RemoveWidget(runtime.Placement.InstanceId);
+        _workspace.RaiseChanged();
+    }
+
+    /// <summary>
+    /// Hands the language to the product, once per change: the runtime is what drives the
+    /// change, so it remembers what it last applied rather than asking the product.
+    /// </summary>
+    private void ApplyLanguage(string setting)
+    {
+        if (string.Equals(_appliedLanguage, setting, StringComparison.Ordinal))
+            return;
+
+        _appliedLanguage = setting;
+        _environment.ApplyLanguage?.Invoke(setting);
     }
 }

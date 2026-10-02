@@ -47,8 +47,7 @@ internal sealed class WidgetRuntimeHost(
     public WidgetRuntime? Add(
         IWidgetProvider provider,
         IWidgetHost host,
-        IReadOnlyList<ScreenBounds> screens,
-        Func<WidgetRuntime, ContextMenu> contextMenu)
+        IReadOnlyList<ScreenBounds> screens)
     {
         ArgumentNullException.ThrowIfNull(provider);
 
@@ -58,7 +57,7 @@ internal sealed class WidgetRuntimeHost(
             screens,
             Guid.NewGuid().ToString("N"));
 
-        return Add(placement, host, screens, contextMenu);
+        return Add(placement, host, screens);
     }
 
     /// <summary>
@@ -68,13 +67,11 @@ internal sealed class WidgetRuntimeHost(
     public WidgetRuntime? Add(
         WidgetPlacement placement,
         IWidgetHost host,
-        IReadOnlyList<ScreenBounds> screens,
-        Func<WidgetRuntime, ContextMenu> contextMenu)
+        IReadOnlyList<ScreenBounds> screens)
     {
         ArgumentNullException.ThrowIfNull(placement);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(screens);
-        ArgumentNullException.ThrowIfNull(contextMenu);
 
         if (registry.Find(placement.WidgetId) is not { } provider)
         {
@@ -102,7 +99,7 @@ internal sealed class WidgetRuntimeHost(
         var window = surfaces.Create(placement, descriptor, viewModel, new PixelPoint(onScreen.X, onScreen.Y));
         var runtime = new WidgetRuntime(placement, viewModel, window);
 
-        window.SetContextMenu(contextMenu(runtime));
+
         window.SnapStrategy = proposed => placementRules.Snap(_widgets, runtime, proposed, surfaceMargin);
         window.DragCompleted += (_, _) =>
         {

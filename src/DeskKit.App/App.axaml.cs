@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using DeskKit.App.Diagnostics;
+using DeskKit.App.Shell;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
 using DeskKit.Core;
@@ -24,6 +25,9 @@ public partial class App : Application
 {
     private ServiceProvider? _services;
     private WidgetShell? _shell;
+    private TrayIconController? _tray;
+    private SettingsWindowController? _settings;
+    private WidgetContextMenuFactory? _menu;
 
     /// <summary>Held for the lifetime of the process, so one instance owns the database.</summary>
     private SingleInstanceGuard? _instanceGuard;
@@ -87,8 +91,40 @@ public partial class App : Application
 
         _shell = _services.GetRequiredService<WidgetShell>();
 
+        // The product's own UI is built here, not inside the shell: the runtime knows
+        // nothing about a tray icon, a settings window or a notice, and it is the
+        // composition root that decides what the application hangs off it.
+        // The settings window first: the tray's menu opens it, so the tray is built with
+        // something to open.
+        _settings = new SettingsWindowController(
+            _shell,
+            _services.GetRequiredService<ShellAssets>(),
+            _services.GetRequiredService<LanguageService>(),
+            _services.GetRequiredService<WidgetCatalog>());
+
+        _tray = new TrayIconController(
+            _shell,
+            _services.GetRequiredService<WidgetCatalog>(),
+            _services.GetRequiredService<ShellAssets>(),
+            _services.GetRequiredService<LanguageService>(),
+            () => _settings.Open(null));
+
+        _menu = new WidgetContextMenuFactory();
+
+        // The menu belongs to a widget's window, which the runtime owns, so the runtime
+        // says a widget appeared and the product hangs its menu on it.
+        _shell.WidgetAdded += (_, runtime) => runtime.Window.SetContextMenu(
+            _menu.Create(
+                openSettings: () => _settings.Open(runtime.ViewModel),
+                remove: () => _shell.RemoveWidget(runtime.ViewModel)));
+
+        // A widget asking for its own settings never reaches the runtime's contract: the
+        // runtime forwards the request and the product answers it.
+        _shell.SettingsRequested += (_, widget) => _settings.Open(widget);
+
         desktop.Exit += (_, _) =>
         {
+            _tray?.Dispose();
             _shell?.Dispose();
             _services?.Dispose();
             _instanceGuard?.Dispose();
@@ -97,6 +133,18 @@ public partial class App : Application
         try
         {
             _shell.Start();
+
+            // Nothing is shown for a first run or a migration: the state is what it is
+            // by the time Start returns.
+            ReconcileAutoStart();
+
+            _tray.Show();
+
+            // After the tray, so the same warning also lands on the icon, which unlike a
+            // notice neither expires nor can be covered.
+            new StorageNoticePresenter(
+                _services.GetRequiredService<INoticePresenter>(), _tray)
+                .Show(_shell.LoadReport);
         }
         catch (Exception ex)
         {
@@ -120,6 +168,35 @@ public partial class App : Application
 
             wait.Start();
         }
+    }
+
+    /// <summary>
+    /// Brings the stored start-with-Windows preference back in line with this machine.
+    /// </summary>
+    /// <remarks>
+    /// Autostart is registered per user <em>per machine</em>, but the preference travels
+    /// with the profile, so a stored "on" is routinely wrong on a second computer: the
+    /// settings window would show it as on while no registry entry exists. The machine is
+    /// treated as the truth, because writing a run key at startup because a file said so
+    /// is a side effect nobody asked for on that machine.
+    /// <para>
+    /// It is product policy, so it happens here rather than inside the runtime. All it
+    /// does is correct a stored preference, which is why it can run once the shell has
+    /// started instead of in the middle of the startup sequence.
+    /// </para>
+    /// </remarks>
+    private void ReconcileAutoStart()
+    {
+        if (_shell is not { } shell || _services is null)
+            return;
+
+        var services = _services!;
+        var controller = new AutoStartController(
+            services.GetRequiredService<IAutoStartService>(),
+            services.GetRequiredService<ILogger<App>>());
+
+        if (controller.Reconcile(shell.State.Settings) is { } corrected)
+            shell.ApplySettings(corrected);
     }
 
     private static ServiceProvider BuildServices()
@@ -152,6 +229,8 @@ public partial class App : Application
         services.AddSingleton<TickService>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<INoticePresenter, NoticePresenter>();
+        services.AddSingleton<ShellAssets>();
+        services.AddSingleton<WidgetCatalog>();
 
         // One instance for the whole process: it drives both the shell's and the
         // widgets' resource managers, and two of them would fight over the culture.
@@ -165,7 +244,23 @@ public partial class App : Application
         services.AddSingleton(provider =>
             new WidgetRegistry(provider.GetServices<IWidgetProvider>()));
 
-        services.AddSingleton<WidgetShell>();
+        // The runtime is handed the product's data rather than reaching for it: its icon,
+        // the one way it may change the UI language, and which widgets a first run gets.
+        services.AddSingleton(provider => new ShellEnvironment(
+            provider.GetRequiredService<ShellAssets>().Icon,
+            provider.GetRequiredService<LanguageService>().Apply));
+
+        services.AddSingleton(provider => new WidgetShell(
+            provider.GetRequiredService<IStateStore>(),
+            provider.GetRequiredService<WidgetRegistry>(),
+            provider.GetRequiredService<IDesktopLayerService>(),
+            provider.GetRequiredService<TickService>(),
+            provider.GetRequiredService<ThemeService>(),
+            provider.GetRequiredService<IWindowMaterialService>(),
+            provider.GetRequiredService<ShellEnvironment>(),
+            provider.GetRequiredService<IWidgetMessageBus>(),
+            DefaultLayout.WidgetIds,
+            provider.GetRequiredService<ILogger<WidgetShell>>()));
 
         return services.BuildServiceProvider();
     }

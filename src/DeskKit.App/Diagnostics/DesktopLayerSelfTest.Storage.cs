@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using DeskKit.App.Localization;
 using DeskKit.App.Services;
+using DeskKit.App.Shell;
 using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
@@ -195,8 +196,8 @@ internal sealed partial class DesktopLayerSelfTest
             shell.Start();
             await Delay(1500);
 
-            Check("the old layout is read", shell.Widgets.Count == 1,
-                $"count={shell.Widgets.Count}");
+            Check("the old layout is read", shell.Runtimes.Count == 1,
+                $"count={shell.Runtimes.Count}");
         }
         finally
         {
@@ -288,8 +289,8 @@ internal sealed partial class DesktopLayerSelfTest
             shell.Start();
             await Delay(1500);
 
-            Check("the launcher still shows its shortcut", shell.Widgets.Count == 1,
-                $"count={shell.Widgets.Count}");
+            Check("the launcher still shows its shortcut", shell.Runtimes.Count == 1,
+                $"count={shell.Runtimes.Count}");
         }
         finally
         {
@@ -353,13 +354,19 @@ internal sealed partial class DesktopLayerSelfTest
 
         var notices = new RecordingNoticePresenter();
 
-        var shell = CreateShell(directory, notices: notices);
+        var shell = CreateShell(directory);
 
         try
         {
             // Start is what reads the database, and Dispose is what tries to write it.
             // Both have to leave the file alone.
             shell.Start();
+
+            // The notice is the product's to show, exactly as the composition root does
+            // it once the shell has started. Without a tray there is nothing to repeat
+            // the warning on, which is what this section checks anyway.
+            new StorageNoticePresenter(notices, tray: null).Show(shell.LoadReport);
+
             await Delay(800);
         }
         finally

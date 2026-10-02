@@ -20,12 +20,14 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly IShellFacade _shell;
     private readonly LanguageService _language;
+    private readonly WidgetCatalog _catalog;
     private bool _loading;
 
-    public SettingsViewModel(IShellFacade shell, LanguageService language)
+    public SettingsViewModel(IShellFacade shell, LanguageService language, WidgetCatalog catalog)
     {
         _shell = shell;
         _language = language;
+        _catalog = catalog;
         _shell.StateChanged += OnShellStateChanged;
         _language.CultureChanged += OnCultureChanged;
 
@@ -117,7 +119,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         var added = _shell.AddWidget(provider);
         if (added is not null)
-            SelectedWidget = Widgets.FirstOrDefault(w => w.InstanceId == added.InstanceId);
+            SelectedWidget = Widgets.FirstOrDefault(w => w.InstanceId == added.Placement.InstanceId);
     }
 
     [RelayCommand]
@@ -190,8 +192,8 @@ public sealed partial class SettingsViewModel : ObservableObject
             var selectedId = SelectedWidget?.InstanceId;
 
             Widgets.Clear();
-            foreach (var info in _shell.Widgets)
-                Widgets.Add(new WidgetRow(info));
+            foreach (var runtime in _shell.Runtimes)
+                Widgets.Add(new WidgetRow(_catalog.Describe(runtime)));
 
             SelectedWidget = Widgets.FirstOrDefault(w => w.InstanceId == selectedId);
         }

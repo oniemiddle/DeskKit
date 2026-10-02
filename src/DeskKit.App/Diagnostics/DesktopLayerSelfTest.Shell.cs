@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using DeskKit.App.Localization;
 using DeskKit.App.Services;
+using DeskKit.App.Shell;
 using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
@@ -50,8 +51,8 @@ internal sealed partial class DesktopLayerSelfTest
             shell.Start();
             await Delay(1500);
 
-            Check("a first run seeds exactly one widget", shell.Widgets.Count == 1,
-                $"count={shell.Widgets.Count}");
+            Check("a first run seeds exactly one widget", shell.Runtimes.Count == 1,
+                $"count={shell.Runtimes.Count}");
 
             Check("the database is written on first run",
                 File.Exists(store.DatabasePath), store.DatabasePath);
@@ -712,6 +713,91 @@ internal sealed partial class DesktopLayerSelfTest
         await CheckNoticeWindowAsync();
         await CheckWriteSurvivesBeingKilledAsync();
         await CheckTickOrderAsync();
+        await CheckProductWiringAsync();
+    }
+
+    /// <summary>
+    /// The two seams the product hangs its own UI on: a widget appearing, and a widget
+    /// asking for its settings.
+    /// </summary>
+    /// <remarks>
+    /// Neither can be checked anywhere else, because neither exists until the composition
+    /// root has subscribed: the runtime builds no menu and owns no settings window, it
+    /// only says that a widget is there and that one asked. What is checked is that the
+    /// runtime reports both, at the point the product needs them, and that what the
+    /// product hangs on the window is really on the window.
+    /// </remarks>
+    private async Task CheckProductWiringAsync()
+    {
+        Section("22. product wiring");
+
+        var directory = Path.Combine(
+            Path.GetTempPath(), "deskkit-wiring-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var registry = BuiltInRegistry();
+        var shell = CreateShell(directory, registry: registry);
+
+        var announced = new List<WidgetRuntime>();
+        var settingsAsked = new List<WidgetViewModel>();
+        var menus = new WidgetContextMenuFactory();
+
+        // Exactly what the composition root does, so what is exercised is the real
+        // wiring rather than a stand-in for it.
+        shell.WidgetAdded += (_, runtime) =>
+        {
+            announced.Add(runtime);
+            runtime.Window.SetContextMenu(
+                menus.Create(
+                    openSettings: () => { },
+                    remove: () => shell.RemoveWidget(runtime.ViewModel)));
+        };
+
+        shell.SettingsRequested += (_, widget) => settingsAsked.Add(widget);
+
+        try
+        {
+            shell.Start();
+            await Delay(400);
+
+            Check("a seeded widget announces itself to the product",
+                announced.Count > 0 && announced.Count == shell.Runtimes.Count,
+                $"announced={announced.Count} placed={shell.Runtimes.Count}");
+
+            Check("the menu the product built is on the widget window",
+                announced.Count > 0 && announced[0].Window.WidgetMenu is not null,
+                announced.Count > 0 ? $"items={announced[0].Window.WidgetMenu?.Items.Count}" : "nothing announced");
+
+            var provider = registry.Find(ClockWidgetProvider.WidgetId);
+            var added = provider is null ? null : shell.AddWidget(provider);
+
+            Check("a widget added later announces itself too",
+                added is not null && announced.Count == shell.Runtimes.Count,
+                $"announced={announced.Count} placed={shell.Runtimes.Count}");
+
+            Check("the menu is on the window of a widget added later",
+                added?.Window.WidgetMenu is not null,
+                $"items={added?.Window.WidgetMenu?.Items.Count}");
+
+            // A widget can ask the shell for its settings through IWidgetHost. No built-in
+            // widget does today, so this is the only place the request is ever made.
+            if (added is not null)
+                shell.ShowSettings(added.ViewModel);
+
+            Check("a widget asking for its settings reaches the product",
+                added is not null && settingsAsked.Count == 1 && ReferenceEquals(settingsAsked[0], added.ViewModel),
+                $"asked={settingsAsked.Count}");
+        }
+        catch (Exception ex)
+        {
+            Fail("the product wiring ran", ex.Message);
+        }
+        finally
+        {
+            shell.Dispose();
+            await Delay(200);
+            RemoveTemporary(directory);
+        }
     }
 
     /// <summary>

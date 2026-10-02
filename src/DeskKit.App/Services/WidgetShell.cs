@@ -32,18 +32,17 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
     private readonly WorkspaceState _workspace;
     private readonly PlacementController _placement;
+    private readonly WidgetRuntimeHost _runtimes;
     private readonly WidgetRegistry _registry;
     private readonly WidgetCatalog _catalog;
     private readonly ShellAssets _assets;
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
-    private readonly TickService _tickService;
     private readonly ThemeService _themeService;
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly INoticePresenter _notices;
     private readonly IWidgetMessageBus _messages;
-    private readonly List<WidgetRuntime> _widgets = [];
 
     /// <summary>The material every widget window carries, already resolved.</summary>
     private readonly WidgetMaterial _material;
@@ -103,7 +102,6 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _assets = assets;
         _desktopLayer = desktopLayer;
         _autoStart = autoStart;
-        _tickService = tickService;
         _themeService = themeService;
         _materials = materials;
         Language = languageService;
@@ -118,12 +116,24 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         // the first window is created, so it cannot wait for the config to load.
         _material = materials.Resolve(materials.Default);
         _surfaceMargin = WidgetWindow.MarginFor(_material);
+
+        _runtimes = new WidgetRuntimeHost(
+            registry,
+            _placement,
+            tickService,
+            workspace,
+            desktopLayer,
+            materials,
+            _material,
+            _surfaceMargin,
+            assets,
+            logger);
     }
 
     /// <summary>The language preference and the managers it drives.</summary>
     internal LanguageService Language { get; }
 
-    internal IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
+    internal IReadOnlyList<WidgetRuntime> Runtimes => _runtimes.Runtimes;
 
     public AppState State => _workspace.State;
 
@@ -132,7 +142,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
     public IReadOnlyList<WidgetInfo> Widgets =>
     [
-        .. _widgets
+        .. _runtimes.Runtimes
             .Select(w => new WidgetInfo(
                 w.Placement.InstanceId,
                 w.Placement.WidgetId,
@@ -238,7 +248,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         foreach (var placement in State.Widgets.Where(p => p.Enabled))
             CreateWidget(placement);
 
-        _tickService.Start();
+        _runtimes.StartTicking();
         CreateTrayIcon();
 
         ShowStorageNotice();
@@ -397,10 +407,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         _workspace.Dispose();
 
-        foreach (var widget in _widgets.ToArray())
-            DestroyWidget(widget);
-
-        _tickService.Dispose();
+        _runtimes.Dispose();
 
         if (_trayIcon is not null)
         {
@@ -439,124 +446,10 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             runtime.ViewModel);
     }
 
-    private WidgetRuntime? CreateWidget(WidgetPlacement placement)
-    {
-        var provider = _registry.Find(placement.WidgetId);
-        if (provider is null)
-        {
-            _logger.LogWarning("Ignoring widget {WidgetId}: no provider is registered", placement.WidgetId);
-            return null;
-        }
+    private WidgetRuntime? CreateWidget(WidgetPlacement placement) =>
+        _runtimes.Add(placement, this, Screens, BuildContextMenu);
 
-        var descriptor = provider.Descriptor;
-        var settings = new WidgetSettings(placement.Settings);
-        var context = new WidgetContext(placement, settings, this);
-
-        // The stored position, adjusted only if the current displays cannot show it.
-        var onScreen = PlacementNormalizer.EnsureOnScreen(placement, Screens);
-
-        WidgetViewModel viewModel;
-        try
-        {
-            viewModel = provider.Create(context);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Widget {WidgetId} failed to be created", placement.WidgetId);
-            return null;
-        }
-
-        var window = new WidgetWindow(_desktopLayer, _materials, _material)
-        {
-            Title = descriptor.Id,
-            AcceptsKeyboardFocus = !descriptor.PreventActivation,
-            Icon = AppIcon,
-            CardBackground = ThemeService.CardBrushFor(_material),
-            WidgetContent = viewModel.CreateView(),
-            Width = WindowSizeForPlacement(placement, descriptor).Width,
-            Height = WindowSizeForPlacement(placement, descriptor).Height,
-            MinWidth = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Width,
-            MinHeight = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Height,
-
-            // Where the window is actually put, which is not necessarily where it
-            // was stored: a monitor may have gone away since. The placement itself
-            // is left alone, so the widget returns to where the user left it once
-            // that monitor is back.
-            Position = new PixelPoint(onScreen.X, onScreen.Y),
-        };
-
-        var runtime = new WidgetRuntime(placement, viewModel, window);
-        window.SetContextMenu(BuildContextMenu(runtime));
-        window.SnapStrategy = proposed => SnapPosition(runtime, proposed);
-        window.DragCompleted += (_, _) => OnDragCompleted(runtime);
-        window.ResizeCompleted += (_, _) => CapturePlacement(runtime);
-
-        if (viewModel is ITickAware tickAware)
-            _tickService.Subscribe(tickAware);
-
-        _widgets.Add(runtime);
-
-        try
-        {
-            window.Show();
-            viewModel.Start();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Widget {WidgetId} failed to be shown", placement.WidgetId);
-            DestroyWidget(runtime);
-            return null;
-        }
-
-        // The window manager does not always honour the requested origin, and a
-        // widget that is stored somewhere other than where it actually sits
-        // drifts a little further on every restart. Storing what the window
-        // really is removes the whole class of problem.
-        //
-        // Compared against what was asked for, not against the stored placement:
-        // this records where the window manager put the window, and must not turn
-        // a display-driven adjustment into a stored one.
-        var requested = new PixelPoint(onScreen.X, onScreen.Y);
-        if (window.Position != requested)
-        {
-            _logger.LogInformation(
-                "Widget {WidgetId} was asked for {Requested} but placed at {Actual}",
-                placement.WidgetId, requested, window.Position);
-            CapturePlacement(runtime);
-        }
-
-        if (!State.Settings.WidgetsVisible)
-            _desktopLayer.SetVisible(window, false);
-
-        return runtime;
-    }
-
-    private void DestroyWidget(WidgetRuntime runtime)
-    {
-        _widgets.Remove(runtime);
-
-        if (runtime.ViewModel is ITickAware tickAware)
-            _tickService.Unsubscribe(tickAware);
-
-        try
-        {
-            runtime.ViewModel.Stop();
-            runtime.ViewModel.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Widget {WidgetId} failed to shut down cleanly", runtime.Placement.WidgetId);
-        }
-
-        try
-        {
-            runtime.Window.Close();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Widget window failed to close");
-        }
-    }
+    private void DestroyWidget(WidgetRuntime runtime) => _runtimes.Destroy(runtime);
 
     private void Remove(WidgetRuntime runtime)
     {
@@ -581,9 +474,9 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     // ---- Magnetic snapping ----------------------------------------------
 
     private PixelPoint SnapPosition(WidgetRuntime moving, PixelPoint proposed) =>
-        _placement.Snap(_widgets, moving, proposed, _surfaceMargin);
+        _placement.Snap(_runtimes.Runtimes, moving, proposed, _surfaceMargin);
 
-    private void ClearSnapHighlights() => PlacementController.ClearHighlights(_widgets);
+    private void ClearSnapHighlights() => PlacementController.ClearHighlights(_runtimes.Runtimes);
 
     private void OnDragCompleted(WidgetRuntime runtime)
     {
@@ -594,7 +487,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private WidgetPlacement CreatePlacement(IWidgetProvider provider) =>
         WidgetSeedPolicy.CreatePlacement(
             provider,
-            _widgets.Count,
+            _runtimes.Runtimes.Count,
             Screens,
             Guid.NewGuid().ToString("N"));
 
@@ -678,7 +571,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         if (_trayIcon is not null)
             _trayIcon.IsVisible = settings.ShowTrayIcon;
 
-        foreach (var widget in _widgets)
+        foreach (var widget in _runtimes.Runtimes)
             widget.Window.CardBackground = ThemeService.CardBrushFor(_material);
 
         _workspace.RaiseChanged();
@@ -688,7 +581,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         _workspace.ReplaceSettings(State.Settings with { WidgetsVisible = visible });
 
-        foreach (var widget in _widgets)
+        foreach (var widget in _runtimes.Runtimes)
         {
             _desktopLayer.SetVisible(widget.Window, visible);
             widget.IsVisible = visible;
@@ -782,6 +675,5 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
     private WindowIcon AppIcon => _assets.Icon;
 
-    private WidgetRuntime? FindRuntime(WidgetViewModel viewModel) =>
-        _widgets.FirstOrDefault(w => ReferenceEquals(w.ViewModel, viewModel));
+    private WidgetRuntime? FindRuntime(WidgetViewModel viewModel) => _runtimes.Find(viewModel);
 }

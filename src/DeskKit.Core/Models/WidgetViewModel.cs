@@ -11,10 +11,20 @@ namespace DeskKit.Core.Models;
 public sealed class WidgetContext(
     WidgetPlacement placement, WidgetSettings settings, IWidgetHost host)
 {
+    /// <summary>
+    /// Where the widget was when it was created: a snapshot, not a live view.
+    /// </summary>
+    /// <remarks>
+    /// Moving or resizing a widget updates the placement the shell stores, and this copy
+    /// does not follow it. A widget that needs its current position asks the window it is
+    /// drawn in, or reads it back from the state, rather than reading it here.
+    /// </remarks>
     public WidgetPlacement Placement { get; } = placement;
 
+    /// <summary>This instance's own configuration, shared with the stored placement.</summary>
     public WidgetSettings Settings { get; } = settings;
 
+    /// <summary>What a widget may ask of the shell: screens, its messages, and its own state.</summary>
     public IWidgetHost Host { get; } = host;
 
     public string InstanceId => Placement.InstanceId;

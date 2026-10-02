@@ -19,6 +19,7 @@
     <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
     <ProjectReference Include="..\DeskKit.Persistence\DeskKit.Persistence.csproj" />
     <ProjectReference Include="..\DeskKit.Platform\DeskKit.Platform.csproj" />
+    <ProjectReference Include="..\DeskKit.Runtime\DeskKit.Runtime.csproj" />
     <ProjectReference Include="..\DeskKit.Widgets\DeskKit.Widgets.csproj" />
   </ItemGroup>
 

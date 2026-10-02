@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -17,6 +17,8 @@ using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
+using DeskKit.Runtime;
+using DeskKit.Runtime.Views;
 namespace DeskKit.App.Diagnostics;
 
 /// <summary>

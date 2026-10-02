@@ -4,7 +4,7 @@ using Avalonia.Styling;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 
-namespace DeskKit.App.Services;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Applies the light/dark preference and hands out the widget card surface

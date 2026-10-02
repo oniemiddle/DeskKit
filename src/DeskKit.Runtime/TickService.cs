@@ -1,7 +1,7 @@
-using Avalonia.Threading;
+﻿using Avalonia.Threading;
 using DeskKit.Core.Models;
 
-namespace DeskKit.App.Services;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// One shared timer that drives every widget which asks for periodic updates.

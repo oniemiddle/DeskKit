@@ -1,9 +1,9 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using DeskKit.Core.Models;
 
-namespace DeskKit.App.Views;
+namespace DeskKit.Runtime.Views;
 
 /// <summary>
 /// Draws the magnetism glow on the card's own surface.

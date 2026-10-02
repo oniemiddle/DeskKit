@@ -1,6 +1,7 @@
 ﻿using DeskKit.Core.Models;
 using DeskKit.Platform;
 using Microsoft.Extensions.Logging;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 

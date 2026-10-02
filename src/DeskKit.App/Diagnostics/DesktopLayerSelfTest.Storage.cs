@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Avalonia;
@@ -15,6 +15,8 @@ using DeskKit.Persistence;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets.QuickLaunch;
 using Microsoft.Data.Sqlite;
+using DeskKit.Runtime;
+using DeskKit.Runtime.Views;
 
 namespace DeskKit.App.Diagnostics;
 

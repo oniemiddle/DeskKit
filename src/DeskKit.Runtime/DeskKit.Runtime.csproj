@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- The desktop self test builds shells and drives real widget windows from
+         inside the application, and the runtime tests drive collaborators that are
+         deliberately not part of the runtime's public surface. -->
+    <InternalsVisibleTo Include="DeskKit.App" />
+    <InternalsVisibleTo Include="DeskKit.Runtime.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- D-3: the runtime knows the widget contract and the ports it consumes, and
+         nothing else. Platform holds the Win32 implementations, Persistence holds
+         the database, and Widgets holds the built-in widgets, so none of them may
+         appear here. The target below fails the build if one does. -->
+    <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Widgets' view models return Avalonia controls and the runtime hosts them in
+         real windows, so this is the same UI framework Core already references. -->
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <Target Name="EnforceRuntimeBoundary" BeforeTargets="Build">
+    <Error Condition="'%(ProjectReference.Filename)' != 'DeskKit.Core'"
+           Text="DeskKit.Runtime must reference DeskKit.Core only (got %(ProjectReference.Filename)); see D-3." />
+  </Target>
+
+</Project>

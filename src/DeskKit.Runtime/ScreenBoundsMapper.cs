@@ -1,7 +1,7 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.Core.Models;
 
-namespace DeskKit.Platform;
+namespace DeskKit.Runtime;
 
 /// <summary>Translates Avalonia's monitor list into the UI-free model the core uses.</summary>
 public static class ScreenBoundsMapper

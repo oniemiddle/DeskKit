@@ -4,7 +4,7 @@ using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using Microsoft.Extensions.Logging;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Owns the application state in memory and is the only thing that asks the store to

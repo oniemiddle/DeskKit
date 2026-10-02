@@ -4,6 +4,7 @@ using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Widgets.Clock;
 using Microsoft.Extensions.Logging.Abstractions;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.Tests;
 

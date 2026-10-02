@@ -1,9 +1,8 @@
 ﻿using Avalonia;
-using DeskKit.App.Services;
-using DeskKit.App.Views;
 using DeskKit.Core.Models;
+using DeskKit.Runtime.Views;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// One widget as the placement rules see it: something that can be measured and lit up,

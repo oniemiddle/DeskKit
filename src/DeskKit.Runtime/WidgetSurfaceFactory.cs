@@ -1,11 +1,10 @@
 ﻿using Avalonia;
-using DeskKit.App.Services;
-using DeskKit.App.Views;
+using Avalonia.Controls;
+using DeskKit.Runtime.Views;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
-using DeskKit.Platform;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Builds the window a widget is shown in: the surface, its size, the material it
@@ -27,7 +26,7 @@ internal sealed class WidgetSurfaceFactory(
     IWindowMaterialService materials,
     WidgetMaterial material,
     double surfaceMargin,
-    ShellAssets assets)
+    WindowIcon? icon)
 {
     public WidgetWindow Create(
         WidgetPlacement placement,
@@ -50,7 +49,7 @@ internal sealed class WidgetSurfaceFactory(
             // thing that would have made the runtime resolve product text.
             Title = descriptor.Id,
             AcceptsKeyboardFocus = !descriptor.PreventActivation,
-            Icon = assets.Icon,
+            Icon = icon,
             CardBackground = ThemeService.CardBrushFor(material),
             WidgetContent = viewModel.CreateView(),
             Width = card.Width,

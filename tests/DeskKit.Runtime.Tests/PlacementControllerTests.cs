@@ -1,11 +1,11 @@
 ﻿using Avalonia;
-using DeskKit.App.Shell;
 using DeskKit.Core.Abstractions;
+using DeskKit.Runtime;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DeskKit.App.Tests;
+namespace DeskKit.Runtime.Tests;
 
 /// <summary>
 /// The snapping rules are pure arithmetic over rectangles, but they run against live

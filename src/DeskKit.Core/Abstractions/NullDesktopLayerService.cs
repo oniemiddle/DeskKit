@@ -1,8 +1,6 @@
 ﻿using Avalonia.Controls;
 
-using DeskKit.Core.Abstractions;
-
-namespace DeskKit.Platform;
+namespace DeskKit.Core.Abstractions;
 
 /// <summary>
 /// Fallback used on platforms without desktop-layer support. Widgets still work

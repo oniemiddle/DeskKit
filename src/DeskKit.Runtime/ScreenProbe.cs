@@ -1,8 +1,7 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.Core.Models;
-using DeskKit.Platform;
 
-namespace DeskKit.App.Services;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Supplies the monitor layout without needing a visible window.

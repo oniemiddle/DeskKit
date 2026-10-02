@@ -1,13 +1,11 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
-using DeskKit.App.Services;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
-using DeskKit.Platform;
 using Microsoft.Extensions.Logging;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Owns the widgets that are on the desktop: which instances exist, when they are

@@ -1,9 +1,9 @@
-using Avalonia;
-using DeskKit.App.Shell;
+﻿using Avalonia;
+using DeskKit.Runtime.Views;
 using DeskKit.Core.Models;
-using DeskKit.App.Views;
+using DeskKit.Runtime.Views;
 
-namespace DeskKit.App.Services;
+namespace DeskKit.Runtime;
 
 /// <summary>One placed widget: its stored placement, its view model and its window.</summary>
 internal sealed class WidgetRuntime(

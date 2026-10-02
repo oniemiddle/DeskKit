@@ -6,9 +6,8 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
-using DeskKit.Platform;
 
-namespace DeskKit.App.Views;
+namespace DeskKit.Runtime.Views;
 
 /// <summary>
 /// A single widget window: a borderless, fully transparent top-level window that

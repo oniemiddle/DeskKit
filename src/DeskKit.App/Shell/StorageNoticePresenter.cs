@@ -2,6 +2,7 @@
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 

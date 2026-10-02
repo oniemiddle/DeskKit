@@ -1,4 +1,4 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.App.Localization;
 using DeskKit.App.Shell;
 using DeskKit.App.ViewModels;
@@ -8,6 +8,8 @@ using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
 using Microsoft.Extensions.Logging;
+using DeskKit.Runtime;
+using DeskKit.Runtime.Views;
 
 namespace DeskKit.App.Services;
 
@@ -88,7 +90,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             workspace,
             desktopLayer,
             _surfaceMargin,
-            new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets),
+            new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets.Icon),
             logger);
 
         _startup = new ShellStartup(registry, logger);

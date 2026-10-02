@@ -7,6 +7,8 @@ using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Platform;
 using DeskKit.Platform.Windows;
+using DeskKit.Runtime;
+using DeskKit.Runtime.Views;
 
 namespace DeskKit.App.Diagnostics;
 

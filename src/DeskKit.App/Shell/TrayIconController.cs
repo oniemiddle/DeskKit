@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using DeskKit.App.Localization;
 using DeskKit.Core;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 

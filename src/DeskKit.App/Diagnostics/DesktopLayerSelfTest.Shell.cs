@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -18,6 +18,8 @@ using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
 using DeskKit.Widgets.Clock;
 using DeskKit.Widgets.Localization;
+using DeskKit.Runtime;
+using DeskKit.Runtime.Views;
 
 namespace DeskKit.App.Diagnostics;
 

@@ -2,6 +2,7 @@
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
 using DeskKit.Widgets.Localization;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 

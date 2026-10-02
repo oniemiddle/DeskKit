@@ -1,9 +1,8 @@
 ﻿using Avalonia.Media;
-using DeskKit.App.Services;
 using DeskKit.Core.Abstractions;
-using DeskKit.Platform;
+using DeskKit.Runtime;
 
-namespace DeskKit.App.Tests;
+namespace DeskKit.Runtime.Tests;
 
 /// <summary>
 /// What a live card is painted with, which is the one thing about the surface a widget

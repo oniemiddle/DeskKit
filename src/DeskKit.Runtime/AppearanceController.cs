@@ -1,6 +1,5 @@
-﻿using DeskKit.App.Services;
-
-namespace DeskKit.App.Shell;
+﻿
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// What the theme and the surface material do to the widgets that are already on screen.

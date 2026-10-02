@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -8,6 +8,7 @@ using DeskKit.App.Shell;
 using DeskKit.Core;
 using DeskKit.Core.Models;
 using DeskKit.Widgets.Localization;
+using DeskKit.Runtime;
 
 namespace DeskKit.App.ViewModels;
 

@@ -11,8 +11,6 @@ using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
-using DeskKit.Widgets.Clock;
-using DeskKit.Widgets.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace DeskKit.App.Services;
@@ -46,6 +44,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     private readonly SettingsWindowController _settings;
     private readonly WidgetContextMenuFactory _contextMenus = new();
     private readonly StorageNoticePresenter _storageNotices;
+    private readonly ShellStartup _startup;
 
     public WidgetShell(
         IStateStore stateStore,
@@ -119,6 +118,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets),
             logger);
 
+        _startup = new ShellStartup(registry, logger);
         _settings = new SettingsWindowController(this, assets);
         _tray = new TrayIconController(this, _catalog, assets, () => _settings.Open(null));
         _storageNotices = new StorageNoticePresenter(notices, _tray);
@@ -182,43 +182,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     {
         _workspace.Load();
 
-        var report = _workspace.LoadReport;
-
-        foreach (var problem in report.Problems)
-        {
-            _logger.LogWarning(
-                "Storage problem with {Subject}: {Detail}", problem.Subject, problem.Detail);
-        }
-
-        switch (report.Outcome)
-        {
-            // The two messages that explain a session. They are logged here rather than
-            // when a save is refused, because this runs before anything can be changed
-            // and a session may end without ever attempting to save —which would leave
-            // the user with an empty desktop and no explanation anywhere.
-            case StoreOutcome.NewerSchema:
-                _logger.LogWarning(
-                    "The database {File} was written by a newer version of DeskKit, so it was not "
-                    + "read and will not be written over. Upgrade DeskKit to use the layout it "
-                    + "holds; nothing done in this session will be saved.",
-                    _workspace.DatabasePath);
-                break;
-
-            case StoreOutcome.Unavailable:
-                _logger.LogWarning(
-                    "The database {File} could not be opened, so DeskKit started with nothing "
-                    + "loaded and will not write over it. Nothing done in this session will be "
-                    + "saved. Close whatever is holding it, then restart DeskKit.",
-                    _workspace.DatabasePath);
-                break;
-
-            case StoreOutcome.Imported:
-                _logger.LogInformation(
-                    "Imported the configuration from {Source} into {Database}",
-                    report.ImportedFrom,
-                    _workspace.DatabasePath);
-                break;
-        }
+        _startup.ReportLoad(_workspace.LoadReport, _workspace.DatabasePath);
 
         _appearance.ApplyTheme(State.Settings.Theme);
 
@@ -228,7 +192,11 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
         ReconcileAutoStart();
 
-        MigrateWidgetSettings();
+        // A migration reached the disk now rather than whenever something else happens
+        // to change: one that only landed on exit would run again on every start until
+        // then.
+        if (_startup.MigrateWidgetSettings(State.Widgets) is { } migrated)
+            _workspace.ReplaceWidgets(migrated);
 
         if (!_workspace.HasStoredState)
             SeedDefaultWidgets();
@@ -245,7 +213,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _runtimes.StartTicking();
         _tray.Show();
 
-        ShowStorageNotice();
+        _storageNotices.Show(_workspace.LoadReport);
     }
 
     /// <summary>
@@ -280,67 +248,6 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
                 _autoStart.IsSupported,
                 _autoStart.IsEnabled),
         });
-    }
-
-    /// <summary>
-    /// Brings each widget's own settings up to the version its provider declares.
-    /// </summary>
-    /// <remarks>
-    /// This does write back into the stored placements, which the placement rules
-    /// otherwise never do. The difference is what is being written: a display that
-    /// cannot show a widget is this session's problem, while a settings migration is
-    /// a real change to what was stored —the same kind of correction as reconciling
-    /// the start-with-Windows flag against the registry.
-    /// </remarks>
-    private void MigrateWidgetSettings()
-    {
-        var result = WidgetSettingsMigrator.Apply(State.Widgets, _registry);
-
-        // Logged in the order the placements were read, so the log of a session with
-        // several widgets reads the same way it did before the walk moved out of here.
-        foreach (var entry in result.Entries)
-        {
-            if (entry.Problem is not null)
-            {
-                _logger.LogWarning(
-                    "Widget {InstanceId} ({WidgetId}) settings were left alone: {Problem}",
-                    entry.InstanceId,
-                    entry.WidgetId,
-                    entry.Problem);
-                continue;
-            }
-
-            if (entry.Migrated)
-            {
-                _logger.LogInformation(
-                    "Widget {InstanceId} ({WidgetId}) settings brought forward to version {Version}",
-                    entry.InstanceId,
-                    entry.WidgetId,
-                    entry.Version);
-            }
-        }
-
-        if (!result.Changed)
-            return;
-
-        // Persisted now rather than whenever something else happens to change: a
-        // migration that only reached the disk on exit would run again on every
-        // start until then.
-        _workspace.ReplaceWidgets(result.Placements);
-    }
-
-    /// <summary>
-    /// Puts whatever went wrong with the stored files in front of the user, once,
-    /// rather than only in the log.
-    /// </summary>
-    /// <remarks>
-    /// The log holds the details, but it is only read once something has already
-    /// gone wrong. A session that has quietly stopped saving loses the user's work at
-    /// the point they close the application, which is far too late to say so.
-    /// </remarks>
-    private void ShowStorageNotice()
-    {
-        _storageNotices.Show(_workspace.LoadReport);
     }
 
     /// <summary>

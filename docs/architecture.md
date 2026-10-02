@@ -126,7 +126,7 @@ read-only refusal rules for unavailable or newer schemas. The in-memory copy is
 owned by the runtime's `WorkspaceState`, which debounces ordinary writes and
 raises the change the open UI reacts to; nothing else asks the store to write.
 Widget settings are stored as versioned JSON per placement and migrated by the
-widget provider. The shell debounces ordinary writes, but migrations and
+widget provider. `WorkspaceState` debounces ordinary writes, but migrations and
 first-run seeding are saved immediately, and first-run seeding itself belongs to
 the product: the runtime is handed the widget ids a first run should create and
 never reads a default layout of its own.
@@ -208,7 +208,11 @@ deciding, at minimum:
 
 1. **Identity and collisions.** Which component owns an id, and what happens when
    two do. `WidgetRegistry` already fails a duplicate, but a plugin host has to
-   decide whether one failing plugin aborts startup or is skipped.
+   decide whether one failing plugin aborts startup or is skipped. The id a
+   third-party widget would be allowed to use is part of this and is not specified
+   yet: the rule that a widget id carries a vendor or application prefix, so that a
+   plug-in can never collide with a built-in, is recorded as a decision to take
+   before any loader is written.
 2. **Versioning.** What a plugin is compiled against, and what happens when the
    host's contract moves. The widget contract is source-compatible today, not
    binary-stable.

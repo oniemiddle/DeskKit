@@ -8,6 +8,7 @@ using DeskKit.App.Localization;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
 using DeskKit.Core;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Persistence;

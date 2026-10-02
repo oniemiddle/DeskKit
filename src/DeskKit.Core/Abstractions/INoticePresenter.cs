@@ -1,4 +1,4 @@
-namespace DeskKit.App.Services;
+﻿namespace DeskKit.Core.Abstractions;
 
 /// <summary>
 /// Something the user has to be told about, once, without being interrupted by a
@@ -19,7 +19,7 @@ public interface INoticePresenter
 }
 
 /// <summary>
-/// Shows nothing. The default, so a headless caller — a test, the self-test — never
+/// Shows nothing. The default, so a headless caller 鈥?a test, the self-test 鈥?never
 /// opens a window it has no way to close.
 /// </summary>
 public sealed class NullNoticePresenter : INoticePresenter

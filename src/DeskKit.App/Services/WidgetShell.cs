@@ -1,8 +1,9 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DeskKit.App.Localization;
+using DeskKit.App.Shell;
 using DeskKit.App.ViewModels;
 using DeskKit.App.Views;
 using DeskKit.Core;
@@ -23,16 +24,16 @@ namespace DeskKit.App.Services;
 /// </summary>
 public sealed class WidgetShell : IWidgetHost, IDisposable
 {
-    private static readonly TimeSpan SaveDebounce = TimeSpan.FromMilliseconds(500);
-
     /// <summary>Space left between two widgets that snap next to each other.</summary>
     private const int SnapGap = WidgetSnapEngine.DefaultGap;
 
     /// <summary>How close an edge must be, in physical pixels, before it snaps.</summary>
     private const int SnapThreshold = WidgetSnapEngine.DefaultThreshold;
 
-    private readonly IStateStore _stateStore;
+    private readonly WorkspaceState _workspace;
     private readonly WidgetRegistry _registry;
+    private readonly WidgetCatalog _catalog;
+    private readonly ShellAssets _assets;
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
     private readonly TickService _tickService;
@@ -49,10 +50,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// <summary>Transparent inset each window keeps around its card for that material.</summary>
     private readonly double _surfaceMargin;
 
-    private WindowIcon? _appIcon;
     private TrayIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
-    private DispatcherTimer? _saveTimer;
 
     public WidgetShell(
         IStateStore stateStore,
@@ -66,9 +65,40 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         INoticePresenter notices,
         IWidgetMessageBus messages,
         ILogger<WidgetShell> logger)
+        : this(
+            new WorkspaceState(stateStore, logger),
+            registry,
+            new ShellAssets(),
+            desktopLayer,
+            autoStart,
+            tickService,
+            themeService,
+            materials,
+            languageService,
+            notices,
+            messages,
+            logger)
     {
-        _stateStore = stateStore;
+    }
+
+    internal WidgetShell(
+        WorkspaceState workspace,
+        WidgetRegistry registry,
+        ShellAssets assets,
+        IDesktopLayerService desktopLayer,
+        IAutoStartService autoStart,
+        TickService tickService,
+        ThemeService themeService,
+        IWindowMaterialService materials,
+        LanguageService languageService,
+        INoticePresenter notices,
+        IWidgetMessageBus messages,
+        ILogger<WidgetShell> logger)
+    {
+        _workspace = workspace;
         _registry = registry;
+        _catalog = new WidgetCatalog(registry);
+        _assets = assets;
         _desktopLayer = desktopLayer;
         _autoStart = autoStart;
         _tickService = tickService;
@@ -78,6 +108,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _notices = notices;
         _messages = messages;
         _logger = logger;
+
+        _workspace.Changed += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
 
         // Resolved once, at construction, because the answer changes the layout of
         // every window and every snap measurement. It also has to be known before
@@ -91,7 +123,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
 
-    public AppState State { get; private set; } = new();
+    public AppState State => _workspace.State;
 
     /// <summary>Raised after persisted state changes so open UI can refresh.</summary>
     public event EventHandler? StateChanged;
@@ -106,9 +138,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                 // Resolved now rather than carried from the descriptor, which holds
                 // a resource key. The settings window re-reads this list whenever the
                 // culture changes, so the names follow the language.
-                WidgetText.Value(
-                    _registry.Find(w.Placement.WidgetId)?.Descriptor.DisplayName
-                    ?? w.Placement.WidgetId),
+                _catalog.Name(w.Placement.WidgetId),
                 w.ViewModel))
     ];
 
@@ -131,22 +161,22 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             Remove(runtime);
     }
 
-    public void RequestSave() => ScheduleSave();
+    public void RequestSave() => _workspace.ScheduleSave();
 
     /// <summary>
     /// True when the stored data belongs to a newer build. Nothing was read and
     /// nothing may be written, so a session that carried on would show an empty
     /// desktop and quietly keep none of it.
     /// </summary>
-    public bool StoredDataIsNewer => _stateStore.LoadReport.Outcome == StoreOutcome.NewerSchema;
+    public bool StoredDataIsNewer => _workspace.LoadReport.Outcome == StoreOutcome.NewerSchema;
 
     // ---- Lifecycle -------------------------------------------------------
 
     public void Start()
     {
-        State = _stateStore.Load();
+        _workspace.Load();
 
-        var report = _stateStore.LoadReport;
+        var report = _workspace.LoadReport;
 
         foreach (var problem in report.Problems)
         {
@@ -158,14 +188,14 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         {
             // The two messages that explain a session. They are logged here rather than
             // when a save is refused, because this runs before anything can be changed
-            // and a session may end without ever attempting to save — which would leave
+            // and a session may end without ever attempting to save 鈥?which would leave
             // the user with an empty desktop and no explanation anywhere.
             case StoreOutcome.NewerSchema:
                 _logger.LogWarning(
                     "The database {File} was written by a newer version of DeskKit, so it was not "
                     + "read and will not be written over. Upgrade DeskKit to use the layout it "
                     + "holds; nothing done in this session will be saved.",
-                    _stateStore.DatabasePath);
+                    _workspace.DatabasePath);
                 break;
 
             case StoreOutcome.Unavailable:
@@ -173,14 +203,14 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                     "The database {File} could not be opened, so DeskKit started with nothing "
                     + "loaded and will not write over it. Nothing done in this session will be "
                     + "saved. Close whatever is holding it, then restart DeskKit.",
-                    _stateStore.DatabasePath);
+                    _workspace.DatabasePath);
                 break;
 
             case StoreOutcome.Imported:
                 _logger.LogInformation(
                     "Imported the configuration from {Source} into {Database}",
                     report.ImportedFrom,
-                    _stateStore.DatabasePath);
+                    _workspace.DatabasePath);
                 break;
         }
 
@@ -194,7 +224,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         MigrateWidgetSettings();
 
-        if (!_stateStore.HasStoredState)
+        if (!_workspace.HasStoredState)
             SeedDefaultWidgets();
 
         // The stored placements are deliberately not normalised into State: a display
@@ -221,7 +251,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// therefore routinely wrong on a second computer, where the settings window
     /// would show it as on while no registry entry exists. The registry is treated
     /// as the truth here rather than the file, because the opposite reconciliation
-    /// — writing a run key at startup because a file said so — is a side effect
+    /// 鈥?writing a run key at startup because a file said so 鈥?is a side effect
     /// nobody asked for on that machine.
     /// </para>
     /// </summary>
@@ -237,18 +267,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             return;
         }
 
-        State = State with
+        _workspace.ReplaceSettings(State.Settings with
         {
-            Settings = State.Settings with
-            {
-                StartWithWindows = AutoStartReconciliation.Reconcile(
-                    State.Settings.StartWithWindows,
-                    _autoStart.IsSupported,
-                    _autoStart.IsEnabled),
-            },
-        };
-
-        ScheduleSave();
+            StartWithWindows = AutoStartReconciliation.Reconcile(
+                State.Settings.StartWithWindows,
+                _autoStart.IsSupported,
+                _autoStart.IsEnabled),
+        });
     }
 
     /// <summary>
@@ -258,7 +283,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// This does write back into the stored placements, which the placement rules
     /// otherwise never do. The difference is what is being written: a display that
     /// cannot show a widget is this session's problem, while a settings migration is
-    /// a real change to what was stored — the same kind of correction as reconciling
+    /// a real change to what was stored 鈥?the same kind of correction as reconciling
     /// the start-with-Windows flag against the registry.
     /// </remarks>
     private void MigrateWidgetSettings()
@@ -292,12 +317,10 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         if (!result.Changed)
             return;
 
-        State = State with { Widgets = [.. result.Placements] };
-
         // Persisted now rather than whenever something else happens to change: a
         // migration that only reached the disk on exit would run again on every
         // start until then.
-        ScheduleSave();
+        _workspace.ReplaceWidgets(result.Placements);
     }
 
     /// <summary>
@@ -311,7 +334,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// </remarks>
     private void ShowStorageNotice()
     {
-        var report = _stateStore.LoadReport;
+        var report = _workspace.LoadReport;
         if (!report.HasProblems)
             return;
 
@@ -345,7 +368,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         // Repeated on the tray icon, which neither expires when the notice does nor can
         // be covered by anything.
-        _trayIcon?.ToolTipText = $"DeskKit — {title}";
+        _trayIcon?.ToolTipText = $"DeskKit 鈥?{title}";
     }
 
     /// <summary>
@@ -356,7 +379,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private void SeedDefaultWidgets()
     {
         var placements = WidgetSeedPolicy.CreateFirstRunPlacements(
-            [ClockWidgetProvider.WidgetId],
+            DefaultLayout.WidgetIds,
             _registry,
             Screens,
             () => Guid.NewGuid().ToString("N"));
@@ -364,14 +387,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         if (placements.Count == 0)
             return;
 
-        State.Widgets.AddRange(placements);
-        SaveNow();
+        _workspace.AddWidgets(placements);
+        _workspace.SaveNow();
     }
 
     public void Dispose()
     {
-        _saveTimer?.Stop();
-        SaveNow();
+        _workspace.Dispose();
 
         foreach (var widget in _widgets.ToArray())
             DestroyWidget(widget);
@@ -405,9 +427,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         if (runtime is null)
             return null;
 
-        State.Widgets.Add(placement);
-        ScheduleSave();
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _workspace.AddWidget(placement);
+        _workspace.RaiseChanged();
 
         return new WidgetInfo(
             placement.InstanceId,
@@ -445,9 +466,9 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         var window = new WidgetWindow(_desktopLayer, _materials, _material)
         {
-            Title = WidgetText.Value(descriptor.DisplayName),
+            Title = descriptor.Id,
             AcceptsKeyboardFocus = !descriptor.PreventActivation,
-            Icon = GetAppIcon(),
+            Icon = AppIcon,
             CardBackground = ThemeService.CardBrushFor(_material),
             WidgetContent = viewModel.CreateView(),
             Width = WindowSizeForPlacement(placement, descriptor).Width,
@@ -538,10 +559,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private void Remove(WidgetRuntime runtime)
     {
         DestroyWidget(runtime);
-        State.Widgets.RemoveAll(p => p.InstanceId == runtime.Placement.InstanceId);
-
-        ScheduleSave();
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _workspace.RemoveWidget(runtime.Placement.InstanceId);
+        _workspace.RaiseChanged();
     }
 
     /// <summary>
@@ -568,11 +587,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             Height = card.Height,
         };
 
-        var index = State.Widgets.FindIndex(p => p.InstanceId == runtime.Placement.InstanceId);
-        if (index >= 0)
-            State.Widgets[index] = runtime.Placement;
-
-        ScheduleSave();
+        _workspace.SetPlacement(runtime.Placement);
     }
 
     private Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
@@ -751,7 +766,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         var window = new SettingsWindow
         {
-            Icon = GetAppIcon(),
+            Icon = AppIcon,
             DataContext = new SettingsViewModel(this),
         };
 
@@ -771,7 +786,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        State = State with { Settings = settings };
+        _workspace.ReplaceSettings(settings);
 
         _themeService.Apply(settings.Theme);
 
@@ -796,13 +811,12 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         foreach (var widget in _widgets)
             widget.Window.CardBackground = ThemeService.CardBrushFor(_material);
 
-        ScheduleSave();
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _workspace.RaiseChanged();
     }
 
     public void SetWidgetsVisible(bool visible)
     {
-        State = State with { Settings = State.Settings with { WidgetsVisible = visible } };
+        _workspace.ReplaceSettings(State.Settings with { WidgetsVisible = visible });
 
         foreach (var widget in _widgets)
         {
@@ -810,8 +824,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             widget.IsVisible = visible;
         }
 
-        ScheduleSave();
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _workspace.RaiseChanged();
     }
 
     private void CreateTrayIcon()
@@ -826,7 +839,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
             // Live, so a language change renames the entries in place instead of
             // leaving the tray in the language it happened to start in.
-            if (WidgetText.Observable(provider.Descriptor.DisplayName) is { } name)
+            if (_catalog.ObservableName(provider.Descriptor.Id) is { } name)
                 name.SubscribeAction(text => item.Header = text);
             else
                 item.Header = provider.Descriptor.DisplayName;
@@ -879,7 +892,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         _trayIcon = new TrayIcon
         {
-            Icon = GetAppIcon(),
+            Icon = AppIcon,
             ToolTipText = "DeskKit",
             Menu = menu,
             IsVisible = State.Settings.ShowTrayIcon,
@@ -897,46 +910,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         }
     }
 
-    private WindowIcon GetAppIcon() =>
-        _appIcon ??= new WindowIcon(
-            AssetLoader.Open(new Uri("avares://DeskKit.App/Assets/deskkit.ico")));
-
-    // ---- Persistence -----------------------------------------------------
-
-    /// <summary>
-    /// Coalesces bursts of changes into one write. Dragging a widget raises a
-    /// change per pixel, so writing immediately would hammer the disk.
-    /// </summary>
-    private void ScheduleSave()
-    {
-        if (_saveTimer is null)
-        {
-            _saveTimer = new DispatcherTimer { Interval = SaveDebounce };
-            _saveTimer.Tick += (_, _) =>
-            {
-                _saveTimer!.Stop();
-                SaveNow();
-            };
-        }
-
-        _saveTimer.Stop();
-        _saveTimer.Start();
-    }
-
-    private void SaveNow()
-    {
-        try
-        {
-            // A refusal is deliberately not reported here: Start already said what may
-            // not be written, in full, and this runs on every debounced change.
-            // Repeating it would only fill the log.
-            _stateStore.Save(State);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not write the configuration");
-        }
-    }
+    private WindowIcon AppIcon => _assets.Icon;
 
     private WidgetRuntime? FindRuntime(WidgetViewModel viewModel) =>
         _widgets.FirstOrDefault(w => ReferenceEquals(w.ViewModel, viewModel));

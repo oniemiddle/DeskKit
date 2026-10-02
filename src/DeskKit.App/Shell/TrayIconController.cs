@@ -2,6 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using DeskKit.App.Localization;
+using DeskKit.App.Services;
 using DeskKit.Core;
 using DeskKit.Runtime;
 
@@ -27,6 +28,7 @@ internal sealed class TrayIconController(
     IShellFacade shell,
     WidgetCatalog catalog,
     ShellAssets assets,
+    LanguageService language,
     Action openSettings) : IDisposable
 {
     private TrayIcon? _icon;
@@ -85,7 +87,7 @@ internal sealed class TrayIconController(
 
         // Owned by this controller, and released with it, so a disposed shell does not
         // leave a handler holding it alive.
-        shell.Language.CultureChanged += OnCultureChanged;
+        language.CultureChanged += OnCultureChanged;
 
         _icon = new TrayIcon
         {
@@ -126,7 +128,7 @@ internal sealed class TrayIconController(
 
     public void Dispose()
     {
-        shell.Language.CultureChanged -= OnCultureChanged;
+        language.CultureChanged -= OnCultureChanged;
 
         if (_icon is null)
             return;

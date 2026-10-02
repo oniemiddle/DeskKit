@@ -35,6 +35,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     private readonly ShellAssets _assets;
     private readonly AutoStartController _autoStartPolicy;
     private readonly AppearanceController _appearance;
+    private readonly LanguageService _language;
     private readonly IWidgetMessageBus _messages;
 
     /// <summary>The material every widget window carries, already resolved.</summary>
@@ -78,7 +79,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _assets = assets;
         _autoStartPolicy = new AutoStartController(autoStart, logger);
         _appearance = new AppearanceController(themeService);
-        Language = languageService;
+        _language = languageService;
         _messages = messages;
 
         _workspace.Changed += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
@@ -94,13 +95,13 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             logger);
 
         _startup = new ShellStartup(registry, logger);
-        _settings = new SettingsWindowController(this, assets);
-        _tray = new TrayIconController(this, _catalog, assets, () => _settings.Open(null));
+        _settings = new SettingsWindowController(this, assets, languageService);
+        _tray = new TrayIconController(this, _catalog, assets, languageService, () => _settings.Open(null));
         _storageNotices = new StorageNoticePresenter(notices, _tray);
     }
 
-    /// <summary>The language preference and the managers it drives.</summary>
-    public LanguageService Language { get; }
+    /// <summary>What the last load found, so the product can explain the session.</summary>
+    public StoreLoadReport LoadReport => _workspace.LoadReport;
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _runtimes.Runtimes;
 
@@ -152,7 +153,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
         // Before any widget is created, so the first window it builds is already
         // titled in the right language.
-        Language.Apply(State.Settings.Language);
+        _language.Apply(State.Settings.Language);
 
         if (_autoStartPolicy.Reconcile(State.Settings) is { } corrected)
             _workspace.ReplaceSettings(corrected);
@@ -228,8 +229,8 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _workspace.ReplaceSettings(settings);
         _appearance.ApplyTheme(settings.Theme);
 
-        if (!string.Equals(Language.Setting, settings.Language, StringComparison.Ordinal))
-            Language.Apply(settings.Language);
+        if (!string.Equals(_language.Setting, settings.Language, StringComparison.Ordinal))
+            _language.Apply(settings.Language);
 
         _autoStartPolicy.Apply(settings);
         _tray.SetVisible(settings.ShowTrayIcon);

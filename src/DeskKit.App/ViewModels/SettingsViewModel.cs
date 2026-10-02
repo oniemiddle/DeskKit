@@ -22,10 +22,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly LanguageService _language;
     private bool _loading;
 
-    public SettingsViewModel(IShellFacade shell)
+    public SettingsViewModel(IShellFacade shell, LanguageService language)
     {
         _shell = shell;
-        _language = shell.Language;
+        _language = language;
         _shell.StateChanged += OnShellStateChanged;
         _language.CultureChanged += OnCultureChanged;
 

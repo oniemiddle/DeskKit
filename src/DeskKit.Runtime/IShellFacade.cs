@@ -1,9 +1,8 @@
-﻿using DeskKit.App.Services;
-using DeskKit.Core.Abstractions;
+﻿using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
-using DeskKit.Runtime;
+using DeskKit.Core.Services;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// Everything the product's own UI needs from the thing that runs the widgets.
@@ -13,6 +12,11 @@ namespace DeskKit.App.Shell;
 /// the concrete type, so neither of them has to know how widgets are created in order to
 /// show a list of them. It is deliberately the smallest set that has a caller: a member
 /// is added when something needs it, not because it might.
+/// <para>
+/// Nothing here is about the language the UI is displayed in. The runtime applies the
+/// preference it is told to apply (see <see cref="ShellEnvironment.ApplyLanguage"/>), and
+/// the product's own windows read and react to its language service directly.
+/// </para>
 /// </remarks>
 public interface IShellFacade
 {
@@ -22,8 +26,11 @@ public interface IShellFacade
     /// <summary>Raised after the state changes, so open UI can re-read it.</summary>
     event EventHandler? StateChanged;
 
-    /// <summary>The language preference and the managers it drives.</summary>
-    LanguageService Language { get; }
+    /// <summary>
+    /// What the last load found. The product is what explains a session that could not
+    /// read its stored state, and nothing else is in a position to know.
+    /// </summary>
+    StoreLoadReport LoadReport { get; }
 
     /// <summary>The widgets currently placed, with the names to show for them.</summary>
     IReadOnlyList<WidgetInfo> Widgets { get; }

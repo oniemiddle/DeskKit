@@ -1,4 +1,5 @@
-﻿using DeskKit.App.ViewModels;
+﻿using DeskKit.App.Services;
+using DeskKit.App.ViewModels;
 using DeskKit.App.Views;
 using DeskKit.Core.Models;
 using DeskKit.Runtime;
@@ -14,7 +15,10 @@ namespace DeskKit.App.Shell;
 /// other application window does. The view model reads the live shell state and writes
 /// changes straight back, which is why the controller only has to own the window.
 /// </remarks>
-internal sealed class SettingsWindowController(IShellFacade shell, ShellAssets assets)
+internal sealed class SettingsWindowController(
+    IShellFacade shell,
+    ShellAssets assets,
+    LanguageService language)
 {
     private SettingsWindow? _window;
 
@@ -45,7 +49,7 @@ internal sealed class SettingsWindowController(IShellFacade shell, ShellAssets a
         var window = new SettingsWindow
         {
             Icon = assets.Icon,
-            DataContext = new SettingsViewModel(shell),
+            DataContext = new SettingsViewModel(shell, language),
         };
 
         // Closing must not end the process, and the next Open has to build a new one

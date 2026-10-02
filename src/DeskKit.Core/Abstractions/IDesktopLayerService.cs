@@ -4,9 +4,10 @@ namespace DeskKit.Core.Abstractions;
 
 /// <summary>Per-window desktop-layer behaviour.</summary>
 /// <param name="PreventActivation">
-/// When true the widget is given <c>WS_EX_NOACTIVATE</c>, so clicking it does
-/// not take focus away from the application the user is working in. Widgets
-/// that need keyboard input (the sticky note) must leave this false.
+/// When true, clicking the widget must not take focus away from the application the
+/// user is working in. How that is arranged is the platform's business; on Windows the
+/// implementation gives such a window a no-activate extended style. Widgets that need
+/// keyboard input (the sticky note) must leave this false.
 /// </param>
 /// <param name="ForceBottom">Keep forcing the window to the bottom of the z-order.</param>
 /// <param name="RejectHide">Refuse requests that would hide the window.</param>

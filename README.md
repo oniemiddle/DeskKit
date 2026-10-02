@@ -649,6 +649,11 @@ displays.
    `IWidgetSettingsMigrations` on the provider and add a step — see
    [Widget settings](#widget-settings).
 
+A new widget is **not** put on the desktop by a first run unless it is added to
+`DefaultLayout` in the application. Which widgets a new user gets is a product
+decision, and the runtime never looks at a descriptor for it: it is handed the
+list of ids to create and knows nothing else about them.
+
 The runtime knows a widget only by the id in its descriptor and never resolves
 user-visible text: names are resolved by the product (`WidgetCatalog`), and the
 language is handed to the runtime as a single delegate

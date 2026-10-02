@@ -20,7 +20,7 @@ system language until you pick one.
 
 ## Widget extension model
 
-The shell depends only on `IWidgetProvider`. Providers are registered with
+The runtime depends only on `IWidgetProvider`. Providers are registered with
 Microsoft.Extensions.DependencyInjection, and `WidgetRegistry` turns that ordered
 set into the catalogue shown by the UI. Built-in widgets use
 `services.AddBuiltInWidgets()`; an extension can register its own
@@ -41,13 +41,13 @@ those policies would make the app less predictable. When that host is introduced
 [`McMaster.NETCore.Plugins`](https://github.com/natemcmaster/DotNetCorePlugins)
 is a good candidate to replace custom `AssemblyLoadContext` and dependency-probing
 code. It should be isolated behind an `IWidgetProvider` discovery service, leaving
-the widget shell and registry unchanged.
+the widget runtime and registry unchanged.
 
 ## Status
 
-The desktop-layer mechanism, the shell and all three widgets are implemented and
+The desktop-layer mechanism, the runtime and all three widgets are implemented and
 verified on Windows 11. macOS and Linux are not implemented yet; the platform
-layer is behind an interface so they can be added without touching the shell.
+layer is behind interfaces so they can be added without touching the runtime.
 
 ## Requirements
 
@@ -72,8 +72,10 @@ dotnet test DeskKit.slnx
 
 The unit tests cover the parts that are pure logic: database round-trips, the
 schema-migration and refusal rules, the import of the old JSON layout, placement
-clamping, widget settings, the language preference, and every branch of the
-desktop-layer and window-material decision rules.
+clamping and snapping, widget settings and their migration, the language
+preference, the first-run seed policy, which widget resource keys exist in which
+language file, and every branch of the desktop-layer and window-material decision
+rules.
 
 ### Verifying the desktop behaviour
 
@@ -221,19 +223,21 @@ src/DeskKit.Widgets/Resources/Strings.json         the same, for the widgets
 src/DeskKit.Widgets/Resources/Strings.zh-Hans.json
 ```
 
-**There are two managers, not one.** The shell cannot see the widgets' strings and
-the widgets cannot see the shell's, so each layer declares its own `[LinguaManager]`
-class — `AppLanguage` and `WidgetLanguage` — with its own resource files. This is
-the library's decentralised model rather than a workaround, and it keeps the
-existing layering intact: `DeskKit.Core` still has no dependency on the
-localization library, because the only thing a widget descriptor carries is a
+**There are two managers, not one.** The application cannot see the widgets' strings
+and the widgets cannot see the application's, so each layer declares its own
+`[LinguaManager]` class — `AppLanguage` and `WidgetLanguage` — with its own
+resource files. This is the library's decentralised model rather than a
+workaround, and it keeps the layering intact: `DeskKit.Core` has no dependency on
+the localization library, because the only thing a widget descriptor carries is a
 resource **key**, which is not a UI concern. `WidgetText` in the widgets assembly
 maps those keys to their observables, so the keys are constants and a typo is a
-compile error rather than a blank label.
+compile error rather than a blank label. The runtime owns neither manager: it
+applies the language it is handed (`ShellEnvironment.ApplyLanguage`), and the
+product resolves every string a user reads.
 
-Both managers are driven from one place, `LanguageService` in the shell. Driving
-them separately is what would produce the failure this prevents: a tray menu in one
-language and widget names in another. Two details are worth recording:
+Both managers are driven from one place, `LanguageService` in the application.
+Driving them separately is what would produce the failure this prevents: a tray
+menu in one language and widget names in another. Two details are worth recording:
 
 - **"Follow system" cannot read `CultureInfo.CurrentUICulture` on demand.** The
   service overwrites that culture when it applies a preference, so after switching
@@ -252,7 +256,7 @@ What is translated, and how:
 | XAML (settings window, widget panels) | `{Translate {x:Static ...+Keys.Key}}` |
 | Drop-down choices | The stored **key** is a separate field from the label. The theme picker used to match a selection back from its own display text, which cannot survive the labels being translated — the saved value would depend on the language that was active when it was picked. |
 | Tray and context menus | Subscribed to the observable, so the headers change in place instead of leaving the menu in the language it started in. |
-| Widget names and descriptions | Descriptors carry resource keys; the shell resolves them when it builds a list, and re-reads that list when the culture changes. |
+| Widget names and descriptions | Descriptors carry resource keys; the product (`WidgetCatalog`) resolves them when it builds a list, and re-reads that list when the culture changes. |
 | File dialog title and filter | Read at the moment the dialog opens, so it is in the language active then. |
 | Sticky note paper names | The note subscribes to the culture change, because its palette is the one piece of widget text that is not in XAML. |
 
@@ -443,16 +447,27 @@ pushing back the edge being dragged rather than by moving the anchored one.
 
 ```
 src/
-  DeskKit.Core/        models, storage, widget contract (no platform code)
-  DeskKit.Platform/    OS interop: window pinning, surface materials, shell icons, autostart
-  DeskKit.Widgets/     the built-in widgets and their strings
-  DeskKit.App/         Avalonia shell: window host, tray, settings window, and its strings
+  DeskKit.Core/         widget contract, state records, pure rules, port contracts
+  DeskKit.Runtime/      the widget runtime: state, lifetime, windows, placement, appearance
+  DeskKit.Persistence/  the database: EF Core, migrations, backup, old-JSON import
+  DeskKit.Platform/     OS interop: window pinning, surface materials, shell icons, autostart
+  DeskKit.Widgets/      the built-in widgets and their strings
+  DeskKit.App/          the product: composition root, tray, settings window, notices, self test
 tests/
   DeskKit.Core.Tests/
+  DeskKit.Runtime.Tests/
+  DeskKit.Persistence.Tests/
   DeskKit.Platform.Tests/
+  DeskKit.App.Tests/
 scripts/
   New-AppIcon.ps1      regenerates Assets/deskkit.ico from scratch
 ```
+
+Dependencies point one way: `Core` references nothing else, `Runtime`,
+`Persistence`, `Platform` and `Widgets` reference only `Core`, and `App`
+references all five. `DeskKit.Runtime.csproj` fails the build if it is given any
+project reference but `DeskKit.Core`, so the runtime cannot quietly grow a
+dependency on the database, the Win32 implementation or the built-in widgets.
 
 ## Data
 
@@ -624,13 +639,18 @@ displays.
 2. Register it in `BuiltInWidgets.CreateProviders`.
 3. Add its name and description to both `Resources/Strings.json` files under
    `Widget`, add the matching constants and mappings to `WidgetText`, and point the
-   descriptor at them.
+   descriptor at them. `WidgetResourceKeyTests` checks that both language files
+   define every key the built-in descriptors name, so a key that only reaches one
+   file fails the test run rather than showing up as raw text in that language.
 4. When the shape of the widget's own settings changes later, implement
    `IWidgetSettingsMigrations` on the provider and add a step — see
    [Widget settings](#widget-settings).
 
-The shell only knows about `IWidgetProvider`, so a future plugin loader can add
-providers from separate assemblies without changing the shell.
+The runtime knows a widget only by the id in its descriptor and never resolves
+user-visible text: names are resolved by the product (`WidgetCatalog`), and the
+language is handed to the runtime as a single delegate
+(`ShellEnvironment.ApplyLanguage`). A future plugin loader can therefore add
+providers from separate assemblies without changing anything that runs a widget.
 
 Set `PreventActivation: true` in the descriptor for any widget that does not
 need the keyboard: such widgets are given `WS_EX_NOACTIVATE` so clicking them

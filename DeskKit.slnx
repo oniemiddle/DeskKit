@@ -7,6 +7,7 @@
     <Project Path="src/DeskKit.Widgets/DeskKit.Widgets.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DeskKit.App.Tests/DeskKit.App.Tests.csproj" />
     <Project Path="tests/DeskKit.Core.Tests/DeskKit.Core.Tests.csproj" />
     <Project Path="tests/DeskKit.Persistence.Tests/DeskKit.Persistence.Tests.csproj" />
     <Project Path="tests/DeskKit.Platform.Tests/DeskKit.Platform.Tests.csproj" />

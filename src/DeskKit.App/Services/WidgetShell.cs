@@ -38,7 +38,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly ShellAssets _assets;
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
-    private readonly ThemeService _themeService;
+    private readonly AppearanceController _appearance;
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly INoticePresenter _notices;
@@ -102,7 +102,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _assets = assets;
         _desktopLayer = desktopLayer;
         _autoStart = autoStart;
-        _themeService = themeService;
+        _appearance = new AppearanceController(themeService, _material);
         _materials = materials;
         Language = languageService;
         _notices = notices;
@@ -224,7 +224,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                 break;
         }
 
-        _themeService.Apply(State.Settings.Theme);
+        _appearance.ApplyTheme(State.Settings.Theme);
 
         // Before any widget is created, so the first window it builds is already
         // titled in the right language.
@@ -549,7 +549,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         _workspace.ReplaceSettings(settings);
 
-        _themeService.Apply(settings.Theme);
+        _appearance.ApplyTheme(settings.Theme);
 
         if (!string.Equals(Language.Setting, settings.Language, StringComparison.Ordinal))
             Language.Apply(settings.Language);
@@ -569,8 +569,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         if (_trayIcon is not null)
             _trayIcon.IsVisible = settings.ShowTrayIcon;
 
-        foreach (var widget in _runtimes.Runtimes)
-            widget.Window.CardBackground = ThemeService.CardBrushFor(_material);
+        _appearance.ApplyCardSurfaces(_runtimes.Runtimes);
 
         _workspace.RaiseChanged();
     }

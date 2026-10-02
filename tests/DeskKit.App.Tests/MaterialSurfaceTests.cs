@@ -1,5 +1,6 @@
 ﻿using Avalonia.Media;
 using DeskKit.App.Services;
+using DeskKit.Core.Abstractions;
 using DeskKit.Platform;
 
 namespace DeskKit.App.Tests;

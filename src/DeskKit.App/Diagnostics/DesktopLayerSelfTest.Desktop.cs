@@ -1,8 +1,9 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using DeskKit.App.Views;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Platform;
 using DeskKit.Platform.Windows;

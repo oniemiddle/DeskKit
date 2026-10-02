@@ -1,3 +1,5 @@
+﻿using DeskKit.Core.Abstractions;
+
 namespace DeskKit.Platform;
 
 /// <summary>
@@ -60,18 +62,4 @@ public static class MaterialPolicy
             _ => WidgetMaterial.None,
         };
     }
-
-    /// <summary>
-    /// True when the material is rendered by the window itself, so the window is
-    /// the widget's surface.
-    /// <para>
-    /// This is what decides the layout: a material fills the window's whole
-    /// rectangle, so a card inset from it would sit on a visible plate of material
-    /// instead of being the thing the material shows through. With a material the
-    /// card therefore fills the window and the platform draws the rounded corners
-    /// and the drop shadow that the inset and the card's own shadow used to
-    /// provide.
-    /// </para>
-    /// </summary>
-    public static bool FillsWindow(WidgetMaterial material) => material != WidgetMaterial.None;
 }

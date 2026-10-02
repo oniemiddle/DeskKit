@@ -1,6 +1,6 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 
-namespace DeskKit.Platform;
+namespace DeskKit.Core.Abstractions;
 
 /// <summary>
 /// Gives widget windows a platform surface material, so the desktop reads

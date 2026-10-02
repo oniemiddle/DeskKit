@@ -1,5 +1,7 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.Platform.Interop;
+
+using DeskKit.Core.Abstractions;
 
 namespace DeskKit.Platform.Windows;
 

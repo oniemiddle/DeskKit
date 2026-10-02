@@ -1,4 +1,4 @@
-namespace DeskKit.Platform;
+﻿namespace DeskKit.Core.Abstractions;
 
 /// <summary>
 /// The material a widget window's surface is made of.
@@ -30,4 +30,22 @@ public enum WidgetMaterial
     /// <see cref="None"/> rather than to a material that would not render.
     /// </summary>
     LiquidGlass,
+}
+/// <summary>
+/// What a material does to a window's layout.
+/// </summary>
+public static class WidgetMaterialExtensions
+{
+    /// <summary>
+    /// True when the material is rendered by the window itself, so the window is the
+    /// widget's surface.
+    /// <para>
+    /// This is what decides the layout: a material fills the window's whole rectangle,
+    /// so a card inset from it would sit on a visible plate of material instead of being
+    /// the thing the material shows through. With a material the card therefore fills the
+    /// window and the platform draws the rounded corners and the drop shadow that the
+    /// inset and the card's own shadow used to provide.
+    /// </para>
+    /// </summary>
+    public static bool FillsWindow(this WidgetMaterial material) => material != WidgetMaterial.None;
 }

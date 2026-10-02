@@ -1,9 +1,10 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Platform;
 
@@ -86,7 +87,7 @@ public partial class WidgetWindow : Window
     /// not the card, draws the rounded corners and the shadow in that mode.
     /// </summary>
     public static double MarginFor(WidgetMaterial material) =>
-        MaterialPolicy.FillsWindow(material) ? 0 : GlowMargin;
+        material.FillsWindow() ? 0 : GlowMargin;
 
     /// <summary>
     /// Puts the window into the mode its material implies. Called from the
@@ -98,7 +99,7 @@ public partial class WidgetWindow : Window
         CardMargin = new Thickness(MarginFor(material));
         _materials.Prepare(this, material);
 
-        if (!MaterialPolicy.FillsWindow(material))
+        if (!material.FillsWindow())
             return;
 
         // The window is the surface now. A card shadow painted inside an opaque

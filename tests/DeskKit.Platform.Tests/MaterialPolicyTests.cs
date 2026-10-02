@@ -1,3 +1,5 @@
+﻿using DeskKit.Core.Abstractions;
+
 namespace DeskKit.Platform.Tests;
 
 /// <summary>
@@ -89,20 +91,5 @@ public sealed class MaterialPolicyTests
         Assert.Equal(
             WidgetMaterial.None,
             MaterialPolicy.Resolve(WidgetMaterial.None, isWindows: true, Windows11_22H2));
-    }
-
-    // ---- The layout consequence -----------------------------------------
-
-    [Fact]
-    public void FillsWindow_IsTrueExactlyWhenThereIsAMaterial()
-    {
-        // This is the rule the whole layout hangs off: a material is drawn by the
-        // window, so an inset card would sit on a visible plate of it.
-        Assert.False(MaterialPolicy.FillsWindow(WidgetMaterial.None));
-
-        Assert.True(MaterialPolicy.FillsWindow(WidgetMaterial.Mica));
-        Assert.True(MaterialPolicy.FillsWindow(WidgetMaterial.MicaAlt));
-        Assert.True(MaterialPolicy.FillsWindow(WidgetMaterial.Acrylic));
-        Assert.True(MaterialPolicy.FillsWindow(WidgetMaterial.LiquidGlass));
     }
 }

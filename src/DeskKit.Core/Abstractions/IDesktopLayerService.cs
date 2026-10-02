@@ -1,6 +1,6 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 
-namespace DeskKit.Platform;
+namespace DeskKit.Core.Abstractions;
 
 /// <summary>Per-window desktop-layer behaviour.</summary>
 /// <param name="PreventActivation">

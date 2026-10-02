@@ -1,8 +1,8 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media;
 using Avalonia.Styling;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
-using DeskKit.Platform;
 
 namespace DeskKit.App.Services;
 
@@ -46,7 +46,7 @@ public sealed class ThemeService
     /// </summary>
     public static IBrush CardBrushFor(WidgetMaterial material)
     {
-        if (MaterialPolicy.FillsWindow(material))
+        if (material.FillsWindow())
             return MaterialSurface;
 
         return Application.Current?.ActualThemeVariant == ThemeVariant.Dark ? DarkCard : LightCard;

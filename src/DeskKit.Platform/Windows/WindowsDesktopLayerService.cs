@@ -1,6 +1,8 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using DeskKit.Platform.Interop;
+
+using DeskKit.Core.Abstractions;
 
 namespace DeskKit.Platform.Windows;
 

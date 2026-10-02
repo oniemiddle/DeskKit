@@ -1,3 +1,5 @@
+﻿using DeskKit.Core.Abstractions;
+
 namespace DeskKit.Platform;
 
 /// <summary>

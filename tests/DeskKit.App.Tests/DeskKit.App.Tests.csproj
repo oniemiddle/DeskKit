@@ -9,6 +9,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The widget resource files the key check reads, copied next to the tests rather
+         than embedded: what is checked has to be the file that ships. -->
+    <Content Include="..\..\src\DeskKit.Widgets\Resources\*.json"
+             LinkBase="WidgetResources"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

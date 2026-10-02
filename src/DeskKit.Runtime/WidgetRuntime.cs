@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using DeskKit.Runtime.Views;
 using DeskKit.Core.Models;
-using DeskKit.Runtime.Views;
 
 namespace DeskKit.Runtime;
 

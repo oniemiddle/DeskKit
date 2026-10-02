@@ -1,3 +1,5 @@
+// Compiled only into the Windows target framework.
+#if WINDOWS
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -25,11 +27,15 @@ public sealed class WindowsShellIconLoader : IShellIconLoader
     private readonly ConcurrentDictionary<string, Bitmap?> _cache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    /// <summary>
+    /// True by definition: this implementation only exists in the Windows target
+    /// framework, which is where the GDI calls it makes are compiled in.
+    /// </summary>
+    public bool IsSupported => true;
 
     public Task<Bitmap?> LoadAsync(string path, CancellationToken cancellationToken = default)
     {
-        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(path))
             return Task.FromResult<Bitmap?>(null);
 
         return Task.Run(() => _cache.GetOrAdd(path, Extract), cancellationToken);
@@ -192,3 +198,4 @@ public sealed class WindowsShellIconLoader : IShellIconLoader
         return bitmap;
     }
 }
+#endif

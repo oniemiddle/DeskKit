@@ -1,4 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿// Compiled only into the Windows target framework.
+#if WINDOWS
+using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
@@ -24,13 +26,14 @@ public sealed class WindowsDesktopLayerService : IDesktopLayerService
 
     private readonly Dictionary<IntPtr, PinnedWindowState> _states = [];
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    /// <summary>
+    /// True by definition: this implementation only exists in the Windows target
+    /// framework, which is where the interop it calls is compiled in.
+    /// </summary>
+    public bool IsSupported => true;
 
     public void Attach(Window window, DesktopLayerOptions options)
     {
-        if (!OperatingSystem.IsWindows())
-            return;
-
         var hwnd = GetHandle(window);
         if (hwnd == IntPtr.Zero || _states.ContainsKey(hwnd))
             return;
@@ -54,9 +57,6 @@ public sealed class WindowsDesktopLayerService : IDesktopLayerService
 
     public void Detach(Window window)
     {
-        if (!OperatingSystem.IsWindows())
-            return;
-
         var hwnd = GetHandle(window);
         if (hwnd == IntPtr.Zero || !_states.Remove(hwnd, out var state))
             return;
@@ -112,9 +112,6 @@ public sealed class WindowsDesktopLayerService : IDesktopLayerService
     private bool TryGetState(Window window, out PinnedWindowState state)
     {
         state = null!;
-        if (!OperatingSystem.IsWindows())
-            return false;
-
         var hwnd = GetHandle(window);
         return hwnd != IntPtr.Zero && _states.TryGetValue(hwnd, out state!);
     }
@@ -348,3 +345,4 @@ public sealed class WindowsDesktopLayerService : IDesktopLayerService
         }
     }
 }
+#endif

@@ -1325,11 +1325,23 @@ widget 名称本地化                      →   App/WidgetCatalog（Product）
 
 | 项 | 位置 | 影响 | 建议 |
 | --- | --- | --- | --- |
-| 视图仍自行判断平台 | `src/DeskKit.App/Views/NoticeWindow.cs:104` 用 `OperatingSystem.IsWindows()`，而非 `_styler.IsSupported` | `INotificationWindowStyler.IsSupported`（`src/DeskKit.Platform/INotificationWindowStyler.cs:19`）无任何消费者；与 `docs/architecture.md` “不在视图/控件里加 `OperatingSystem.Is…` 分支”的说法不一致 | 改为判断该端口即可（一行）；改后需重跑 build/test/selftest |
+| ~~视图仍自行判断平台~~ | `src/DeskKit.App/Views/NoticeWindow.cs:104` 原为 `OperatingSystem.IsWindows()` | **已修**：改为询问 `_styler.IsSupported`，`INotificationWindowStyler.IsSupported` 因此有了唯一消费者，视图不再知道操作系统 | 已完成，见 §24.8 |
 | 9 处未使用的 `using DeskKit.Runtime…;`（P4 批量改命名空间遗留） | `src/DeskKit.App/Diagnostics/DesktopLayerSelfTest.{Desktop,Storage}.cs`、`src/DeskKit.App/Shell/{AutoStartController,DefaultLayout,ShellAssets,StorageNoticePresenter,WidgetContextMenuFactory}.cs`、`tests/DeskKit.App.Tests/AutoStartControllerTests.cs` | 编译无影响（构建 0 警告，当前无 IDE0005 门禁） | 随下一次功能改动顺手清理，不必单独立项 |
 | 3 处注释仍把文本/图标解析写成 “the shell” 的职责 | `src/DeskKit.Core/Models/WidgetDescriptor.cs:8`、`src/DeskKit.Widgets/Clock/ClockWidgetProvider.cs:15`、`src/DeskKit.App/Shell/ShellAssets.cs:8` | 与 P4-4 后的实际归属（Product 的 `WidgetCatalog` / `ShellAssets`）不符 | 纯注释，下次接触这三个文件时改正 |
 
 **结论**：P0–P6 重构在本轮审计后停止。后续在该基线上做正常功能开发；上表三项是记录项，不构成新的重构轮次。
+
+### 24.8 平台选择改为编译期（审计后续改动，非 P0–P6 阶段）
+
+| 项 | 结果 |
+| --- | --- |
+| 决策 | 平台实现不再用运行时判断：`DeskKit.Platform` 多目标 `net10.0;net10.0-windows`，`WINDOWS` 符号决定编译哪一套实现；`AddDeskKitPlatform()` 用 `#if WINDOWS` / `#else` 注册，原先五处 `OperatingSystem.IsWindows()` 三元判断全部删除 |
+| 条件编译范围 | `Interop/{NativeMethods,Win32}.cs`、`Windows/{DesktopDiagnostics,WindowsAutoStartService,WindowsDesktopLayerService,WindowsNotificationWindowStyler,WindowsShellIconLoader,WindowsWindowMaterialService}.cs` 整文件包在 `#if WINDOWS` … `#endif` 内 |
+| 运行时判断清理 | Windows 实现中 `IsSupported => true`；`Attach` / `Detach` / `TryGetState` / `Apply` / `IsEnabled` / `SetEnabled` / `LoadAsync` 内的 `OperatingSystem.IsWindows()` 全部删除。例外：`WindowsWindowMaterialService.IsSupported` 仍调 `MaterialPolicy.Resolve`，因为它回答的是“这台机器的 Mica 是否可用”（依赖 build 号），不是“是不是 Windows” |
+| 目标框架 | `DeskKit.App`、`DeskKit.App.Tests` → `net10.0-windows`；`DeskKit.Platform` 必须先清空继承自 `Directory.Build.props` 的 `TargetFramework`，否则 SDK 判定为非 cross-targeting，只会构建中立 leg（本步已实测踩到） |
+| 保留的运行时判断 | 仅自检第 1 节 `Check("running on Windows", …)` 与随后的早退：它回答“我在哪台机器上跑”，不是“选哪个实现” |
+| 未变的边界 | 六个项目的引用方向不变；`Runtime → Core` 不受影响；`DeskKit.Platform.Tests` 留在 `net10.0`，因此它只覆盖纯规则（`DesktopLayerPolicy` / `MaterialPolicy`），这也顺带证明这两个规则类型确实与平台无关 |
+| 验证 | build **0 警告 / 0 错误**；**260 测试通过 / 0 失败**；自检 **PASS (214 checks)** 退出码 0；两 leg 产物核对：`net10.0` 无 Windows 实现、`net10.0-windows` 有；实机启动 14 秒，进程存活、stderr 为空、创建 `clock` / `quick-launch` / `sticky-note` 三个默认 widget 窗口 |
 
 ## 附：证据索引
 

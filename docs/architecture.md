@@ -52,12 +52,23 @@ cannot be named by the runtime: the runtime never resolves user-visible text.
 
 ## Platform capabilities
 
-`DeskKit.Platform` expresses host integration as capabilities. The contracts the
-runtime consumes live in `DeskKit.Core`, because the runtime may only reference
-Core (D-3/D-6); the implementations, and the capabilities only the product uses,
-live here:
+`DeskKit.Platform` expresses host integration as capabilities, and which
+implementation a capability gets is decided when the assembly is compiled, not when
+it runs. The project targets two frameworks:
 
-| Capability | Contract | Windows implementation | Other platforms |
+* `net10.0-windows` defines `WINDOWS`. The `Windows` folder and the interop it calls
+  are compiled only into this leg, and `AddDeskKitPlatform()` registers them.
+* `net10.0` compiles those files out, and `AddDeskKitPlatform()` registers the no-op
+  capabilities instead.
+
+The product targets `net10.0-windows` and therefore ships the Windows leg; the
+neutral leg is what keeps the no-op path compiling instead of letting it rot. No
+file under `Windows/` tests the operating system, because none of it is compiled
+where the answer could be no. The contracts the runtime consumes live in
+`DeskKit.Core`, because the runtime may only reference Core (D-3/D-6); the
+implementations, and the capabilities only the product uses, live here:
+
+| Capability | Contract | Windows implementation | Neutral implementation |
 | --- | --- | --- | --- |
 | Desktop placement and deliberate visibility | `Core`: `IDesktopLayerService` | `WindowsDesktopLayerService` | `NullDesktopLayerService` |
 | Window material | `Core`: `IWindowMaterialService` (+ `WidgetMaterial`) | `WindowsWindowMaterialService` | `NullWindowMaterialService` |
@@ -67,16 +78,22 @@ live here:
 
 The rules that decide *whether* a capability can be honoured stay here as
 dependency-free static classes (`MaterialPolicy.Resolve`, `DesktopLayerPolicy`),
-so they are unit-tested rather than discovered on one particular machine.
+so they are unit-tested rather than discovered on one particular machine. Note that
+`MaterialPolicy` still takes the build number: "Mica is available" is a question
+about the machine, whereas "this is a Windows build" is a question about the
+compilation, and only the second one becomes a target framework.
 
-`AddDeskKitPlatform()` is the only platform selection point used by the app.
-New OS support therefore means adding implementations and extending that method,
-not adding `OperatingSystem.Is…` branches in views or widgets. A null capability
-must be a safe fallback, never an exception for a feature the host can simply
-omit. The one production file that used to name the Win32 implementation directly
-— the notice window — now asks `INotificationWindowStyler` instead; the desktop
-self test still names `Platform.Windows` on purpose, because measuring Win32
-window styles is its whole job.
+`AddDeskKitPlatform()` is the only platform selection point used by the app, and it
+holds no runtime test — the compiler has already answered. Adding an OS therefore
+means adding a target framework and the implementations for it, not adding
+`OperatingSystem.Is…` branches to views or widgets. A null capability must be a safe
+fallback, never an exception for a feature the host can simply omit. The one
+production file that used to name the Win32 implementation directly — the notice
+window — now asks its `INotificationWindowStyler` port whether styling is supported
+rather than asking the OS. The desktop self test still checks
+`OperatingSystem.IsWindows()` on purpose, and it is the only place left that does:
+it reports which machine it is running on and skips raw interop rather than letting
+it fail, which is a question about the host, not a choice of implementation.
 
 ## Widget SDK and lifecycle
 

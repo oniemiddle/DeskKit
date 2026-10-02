@@ -1,3 +1,5 @@
+// Compiled only into the Windows target framework.
+#if WINDOWS
 using System.Security;
 using Microsoft.Win32;
 
@@ -17,15 +19,16 @@ public sealed class WindowsAutoStartService(string? valueName = null, string? ex
                                               ?? Environment.ProcessPath
                                               ?? throw new InvalidOperationException("The process path is not available.");
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    /// <summary>
+    /// True by definition: this implementation only exists in the Windows target
+    /// framework, which is where the registry it writes is compiled in.
+    /// </summary>
+    public bool IsSupported => true;
 
     public bool IsEnabled
     {
         get
         {
-            if (!OperatingSystem.IsWindows())
-                return false;
-
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
@@ -44,9 +47,6 @@ public sealed class WindowsAutoStartService(string? valueName = null, string? ex
 
     public void SetEnabled(bool enabled)
     {
-        if (!OperatingSystem.IsWindows())
-            return;
-
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
 
         if (enabled)
@@ -60,3 +60,4 @@ public sealed class WindowsAutoStartService(string? valueName = null, string? ex
         }
     }
 }
+#endif

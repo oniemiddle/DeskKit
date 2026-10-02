@@ -1,4 +1,6 @@
-﻿using Avalonia.Controls;
+﻿// Compiled only into the Windows target framework.
+#if WINDOWS
+using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
 namespace DeskKit.Platform.Windows;
@@ -18,14 +20,15 @@ public sealed class WindowsNotificationWindowStyler : INotificationWindowStyler
 {
     private static readonly IntPtr HwndTopmost = new(-1);
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    /// <summary>
+    /// True by definition: this implementation only exists in the Windows target
+    /// framework, which is where the styles it sets are compiled in.
+    /// </summary>
+    public bool IsSupported => true;
 
     public void Apply(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
-
-        if (!OperatingSystem.IsWindows())
-            return;
 
         var hwnd = window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         if (hwnd == IntPtr.Zero)
@@ -47,3 +50,4 @@ public sealed class WindowsNotificationWindowStyler : INotificationWindowStyler
             DesktopLayerPolicy.SwpNoMove | DesktopLayerPolicy.SwpNoSize | DesktopLayerPolicy.SwpNoActivate);
     }
 }
+#endif

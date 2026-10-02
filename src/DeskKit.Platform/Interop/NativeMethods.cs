@@ -1,10 +1,12 @@
+// Compiled only into the Windows target framework.
+#if WINDOWS
 using System.Runtime.InteropServices;
 
 namespace DeskKit.Platform.Interop;
 
 /// <summary>
-/// Native entry points used by the desktop layer. All members are Windows-only;
-/// callers must guard with <see cref="OperatingSystem.IsWindows"/>.
+/// Native entry points used by the desktop layer. Every member is Windows-only,
+/// which is why this file is compiled into the Windows target framework alone.
 /// </summary>
 /// <remarks>
 /// Declared with <see cref="LibraryImportAttribute"/> rather than
@@ -257,3 +259,4 @@ internal static partial class NativeMethods
         public uint bmiColors;
     }
 }
+#endif

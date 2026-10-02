@@ -1,5 +1,7 @@
 using DeskKit.Core.Abstractions;
+#if WINDOWS
 using DeskKit.Platform.Windows;
+#endif
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DeskKit.Platform;
@@ -8,9 +10,11 @@ namespace DeskKit.Platform;
 /// Registers the platform capabilities used by the application shell.
 /// </summary>
 /// <remarks>
-/// The application deliberately calls one cross-platform composition method. OS
-/// selection stays beside the capability implementations, so adding macOS or
-/// Linux services does not leak conditional platform code into the shell.
+/// The application deliberately calls one composition method and never tests the
+/// operating system itself. The choice is made when this assembly is compiled rather
+/// than when it runs: the Windows target framework compiles the Win32 implementations
+/// in and registers them here, and a target framework without them registers the
+/// no-op capabilities instead.
 /// </remarks>
 public static class PlatformServiceCollectionExtensions
 {
@@ -18,30 +22,19 @@ public static class PlatformServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<IDesktopLayerService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsDesktopLayerService()
-                : new NullDesktopLayerService());
-
-        services.AddSingleton<IWindowMaterialService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsWindowMaterialService()
-                : new NullWindowMaterialService());
-
-        services.AddSingleton<IAutoStartService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsAutoStartService()
-                : new NullAutoStartService());
-
-        services.AddSingleton<IShellIconLoader>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsShellIconLoader()
-                : new NullShellIconLoader());
-
-        services.AddSingleton<INotificationWindowStyler>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsNotificationWindowStyler()
-                : NullNotificationWindowStyler.Instance);
+#if WINDOWS
+        services.AddSingleton<IDesktopLayerService, WindowsDesktopLayerService>();
+        services.AddSingleton<IWindowMaterialService, WindowsWindowMaterialService>();
+        services.AddSingleton<IAutoStartService, WindowsAutoStartService>();
+        services.AddSingleton<IShellIconLoader, WindowsShellIconLoader>();
+        services.AddSingleton<INotificationWindowStyler, WindowsNotificationWindowStyler>();
+#else
+        services.AddSingleton<IDesktopLayerService, NullDesktopLayerService>();
+        services.AddSingleton<IWindowMaterialService, NullWindowMaterialService>();
+        services.AddSingleton<IAutoStartService, NullAutoStartService>();
+        services.AddSingleton<IShellIconLoader, NullShellIconLoader>();
+        services.AddSingleton<INotificationWindowStyler>(NullNotificationWindowStyler.Instance);
+#endif
 
         return services;
     }

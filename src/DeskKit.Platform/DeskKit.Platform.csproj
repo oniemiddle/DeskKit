@@ -1,6 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Two legs, and the platform is chosen by which one is compiled rather than by
+         a runtime test: the net10.0-windows leg defines WINDOWS, which is what
+         compiles the interop and the Windows implementations in, and the net10.0 leg
+         compiles them out and registers the no-op capabilities. The product
+         references the Windows leg; the neutral leg is what keeps "the desktop layer
+         is Windows-only" a property of the build. -->
+    <!-- Cleared first, because Directory.Build.props sets a single net10.0 default
+         and the SDK only treats a project as cross-targeting while TargetFramework is
+         empty: with both properties set, TargetFrameworks is ignored and the neutral
+         leg is the only one ever built. -->
+    <TargetFramework />
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
+
     <!-- The interop declarations use character buffers for the structures the shell
          fills in, and LibraryImport's generated stubs are compiled unsafe. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

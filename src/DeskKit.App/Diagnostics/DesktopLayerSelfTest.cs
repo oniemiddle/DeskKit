@@ -6,15 +6,11 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using DeskKit.App.Services;
 using DeskKit.App.Shell;
-using DeskKit.App.Views;
-using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
 using DeskKit.Persistence;
 using DeskKit.Persistence.Data;
-using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -203,6 +199,12 @@ internal sealed partial class DesktopLayerSelfTest
         Note($"os              : {Environment.OSVersion.VersionString}");
         Note($"64-bit process  : {Environment.Is64BitProcess}");
         Note($"date            : {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        // The one place in the product that still asks the operating system
+        // anything, and it is a question about the machine rather than a choice
+        // between implementations: the desktop probes below are raw interop and are
+        // skipped rather than allowed to fail on a host that is not Windows.
+        // Everything that *selects* an implementation does it at compile time, in
+        // DeskKit.Platform's target frameworks.
         Check("running on Windows", OperatingSystem.IsWindows());
 
         if (!OperatingSystem.IsWindows())

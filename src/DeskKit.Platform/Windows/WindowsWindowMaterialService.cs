@@ -1,4 +1,6 @@
-﻿using Avalonia.Controls;
+﻿// Compiled only into the Windows target framework.
+#if WINDOWS
+using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
 using DeskKit.Core.Abstractions;
@@ -179,3 +181,4 @@ public sealed class WindowsWindowMaterialService : IWindowMaterialService
             _ => DwmsbtNone,
         };
 }
+#endif

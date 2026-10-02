@@ -49,8 +49,10 @@ composition root, leaving the widget runtime and registry unchanged.
 ## Status
 
 The desktop-layer mechanism, the runtime and all three widgets are implemented and
-verified on Windows 11. macOS and Linux are not implemented yet; the platform
-layer is behind interfaces so they can be added without touching the runtime.
+verified on Windows 11. macOS and Linux are not implemented yet: the platform layer
+carries no-op capabilities for them and picks between the two sets by which target
+framework is compiled, so adding one does not touch the runtime or the product's
+startup path.
 
 ## Requirements
 
@@ -471,6 +473,13 @@ Dependencies point one way: `Core` references nothing else, `Runtime`,
 references all five. `DeskKit.Runtime.csproj` fails the build if it is given any
 project reference but `DeskKit.Core`, so the runtime cannot quietly grow a
 dependency on the database, the Win32 implementation or the built-in widgets.
+
+`DeskKit.Platform` is the one multi-targeted project. It builds `net10.0-windows`,
+where the Win32 implementations and their interop are compiled in, and `net10.0`,
+where they are compiled out and the no-op capabilities are registered instead.
+`DeskKit.App` and its tests target `net10.0-windows` and so ship the Windows leg;
+`Core`, `Runtime`, `Persistence` and `Widgets` stay platform-neutral on `net10.0`.
+Nothing in the product decides which platform it is on at run time.
 
 ## Data
 

@@ -1,6 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- The product is a Windows application: it has a manifest, it pins windows into
+         the desktop layer and it registers itself to start with the shell. Targeting
+         Windows is what selects the platform implementations in DeskKit.Platform at
+         compile time instead of testing the OS at run time. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>

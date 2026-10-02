@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using DeskKit.App.Services;
 using DeskKit.Platform;
 using DeskKit.Runtime;
 
@@ -101,7 +100,7 @@ internal sealed class NoticeWindow : Window
     {
         base.OnOpened(e);
 
-        if (OperatingSystem.IsWindows())
+        if (_styler.IsSupported)
             _styler.Apply(this);
 
         // Set here rather than in the constructor. A property set before the window

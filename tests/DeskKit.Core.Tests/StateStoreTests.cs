@@ -3,6 +3,8 @@ using System.Text.Json;
 using DeskKit.Core.Data;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 namespace DeskKit.Core.Tests;
 

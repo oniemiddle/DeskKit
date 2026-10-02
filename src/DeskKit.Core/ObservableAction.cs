@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace DeskKit.Core;
 
 /// <summary>
@@ -35,13 +37,28 @@ public static class ObservableAction
         return value;
     }
 
+    /// <summary>
+    /// The string an observable holds right now, or an empty string. Exists so text
+    /// is read one way everywhere; <see cref="CurrentValue{T}"/> would otherwise leave
+    /// every caller to decide what a missing value means.
+    /// </summary>
+    public static string CurrentText(this IObservable<string?> source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return source.CurrentValue() ?? string.Empty;
+    }
+
     private sealed class ActionObserver<T>(Action<T> onNext) : IObserver<T>
     {
         public void OnNext(T value) => onNext(value);
 
-        public void OnError(Exception error)
-        {
-        }
+        /// <summary>
+        /// Traced rather than dropped. Nothing here produces an error today, so the
+        /// only thing this can do is make a future one visible instead of leaving the
+        /// value that was expected to change silently unchanged.
+        /// </summary>
+        public void OnError(Exception error) =>
+            Trace.TraceError($"An observable handed to {nameof(SubscribeAction)} failed: {error}");
 
         public void OnCompleted()
         {

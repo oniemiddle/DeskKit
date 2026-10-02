@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Styling;
+using DeskKit.Core.Models;
 using DeskKit.Platform;
 
 namespace DeskKit.App.Services;
@@ -30,16 +31,13 @@ public sealed class ThemeService
         if (Application.Current is not { } application)
             return;
 
-        application.RequestedThemeVariant = theme switch
+        application.RequestedThemeVariant = ThemeSetting.Normalize(theme) switch
         {
-            "Light" => ThemeVariant.Light,
-            "Dark" => ThemeVariant.Dark,
+            ThemeSetting.Light => ThemeVariant.Light,
+            ThemeSetting.Dark => ThemeVariant.Dark,
             _ => ThemeVariant.Default,
         };
     }
-
-    /// <summary>The surface a widget card is painted with, following the live theme.</summary>
-    public static IBrush CardBrush => CardBrushFor(WidgetMaterial.None);
 
     /// <summary>
     /// The surface for a card on the given material. Over a material the card
@@ -59,7 +57,7 @@ public sealed class ThemeService
     /// a material — a notice, say.
     /// </summary>
     /// <remarks>
-    /// Not <see cref="CardBrush"/>, which paints nothing when the material fills the
+    /// Not what a card gets, which paints nothing when the material fills the
     /// window: there is no material behind a notice, so a transparent surface would
     /// leave the text sitting directly on the wallpaper with nothing holding it.
     /// </remarks>

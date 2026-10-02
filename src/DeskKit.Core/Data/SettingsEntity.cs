@@ -1,3 +1,5 @@
+using DeskKit.Core.Models;
+
 namespace DeskKit.Core.Data;
 
 /// <summary>
@@ -16,10 +18,10 @@ public sealed class SettingsEntity
     public int Id { get; set; } = SingletonId;
 
     /// <summary>One of <c>System</c>, <c>Light</c> or <c>Dark</c>.</summary>
-    public string Theme { get; set; } = "System";
+    public string Theme { get; set; } = ThemeSetting.System;
 
     /// <summary><c>System</c>, or a culture name such as <c>zh-Hans</c>.</summary>
-    public string Language { get; set; } = "System";
+    public string Language { get; set; } = LanguageSetting.System;
 
     public bool StartWithWindows { get; set; }
 

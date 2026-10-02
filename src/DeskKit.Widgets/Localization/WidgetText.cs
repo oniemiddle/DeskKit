@@ -32,22 +32,13 @@ public static class WidgetText
     /// The observable behind a key, or null for a key this layer does not own —
     /// which is what a widget from a future plugin would hand over.
     /// </summary>
-    public static IObservable<string?>? Observable(string key) => key switch
-    {
-        ClockName => WidgetLanguage.Instance.Widget_Clock_Name,
-        ClockDescription => WidgetLanguage.Instance.Widget_Clock_Description,
-        StickyNoteName => WidgetLanguage.Instance.Widget_StickyNote_Name,
-        StickyNoteDescription => WidgetLanguage.Instance.Widget_StickyNote_Description,
-        QuickLaunchName => WidgetLanguage.Instance.Widget_QuickLaunch_Name,
-        QuickLaunchDescription => WidgetLanguage.Instance.Widget_QuickLaunch_Description,
-        PaperYellow => WidgetLanguage.Instance.Note_Paper_Yellow,
-        PaperPink => WidgetLanguage.Instance.Note_Paper_Pink,
-        PaperGreen => WidgetLanguage.Instance.Note_Paper_Green,
-        PaperBlue => WidgetLanguage.Instance.Note_Paper_Blue,
-        PaperPurple => WidgetLanguage.Instance.Note_Paper_Purple,
-        PaperGrey => WidgetLanguage.Instance.Note_Paper_Grey,
-        _ => null,
-    };
+    /// <remarks>
+    /// Asked of the library rather than mapped again here. The generated manager
+    /// already holds a key-to-observable table, and a second copy of it would only be
+    /// a place for a key added to the resource file to go missing.
+    /// </remarks>
+    public static IObservable<string?>? Observable(string key) =>
+        WidgetLanguage.Instance.GetObservable(key);
 
     /// <summary>
     /// The key's value right now, for callers that only need a snapshot. Subscribe

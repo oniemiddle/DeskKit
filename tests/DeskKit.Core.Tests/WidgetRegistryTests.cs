@@ -14,7 +14,6 @@ public sealed class WidgetRegistryTests
 
         registry.Register(provider);
 
-        Assert.True(registry.Contains("clock"));
         Assert.Same(provider, registry.Find("clock"));
     }
 

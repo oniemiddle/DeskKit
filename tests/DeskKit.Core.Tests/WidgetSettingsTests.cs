@@ -58,28 +58,6 @@ public sealed class WidgetSettingsTests
     }
 
     [Fact]
-    public void ToDictionary_ReturnsACopy()
-    {
-        var values = Values(("paper", 2));
-        var settings = new WidgetSettings(values);
-
-        var copy = settings.ToDictionary();
-        copy["paper"] = JsonSerializer.SerializeToElement(5);
-
-        Assert.Equal(2, settings.Get("paper", 0));
-    }
-
-    [Fact]
-    public void SetJson_RemovesTheKeyWhenGivenNull()
-    {
-        var settings = new WidgetSettings(Values(("paper", 2)));
-
-        settings.SetJson("paper", null);
-
-        Assert.Equal(-1, settings.Get("paper", -1));
-    }
-
-    [Fact]
     public void ChangesAreVisibleThroughTheUnderlyingDictionary()
     {
         // The shell persists the placement's dictionary directly, so writes made
@@ -99,11 +77,12 @@ public sealed class WidgetSettingsTests
     [Fact]
     public void Set_WritesANestedObjectInTheSameNamingAsTheFileAroundIt()
     {
-        var settings = new WidgetSettings([]);
+        var values = new Dictionary<string, JsonElement>();
+        var settings = new WidgetSettings(values);
 
         settings.Set("items", new List<Nested> { new("Notepad", "notepad.exe") });
 
-        var json = settings.ToDictionary()["items"].GetRawText();
+        var json = values["items"].GetRawText();
 
         // camelCase, like the file this ends up buried in, rather than the
         // serializer's default of the property names as declared.

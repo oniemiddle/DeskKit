@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace DeskKit.Core.Services;
 
@@ -68,25 +67,6 @@ public sealed class WidgetSettings : INotifyPropertyChanged
         if (_values.TryGetValue(key, out var existing) && existing.GetRawText() == element.GetRawText())
             return;
 
-        _values[key] = element;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(key));
-    }
-
-    /// <summary>A snapshot of the current values, for persistence.</summary>
-    public Dictionary<string, JsonElement> ToDictionary() => new(_values);
-
-    /// <summary>Replaces a value with a JSON object literal, for nested settings.</summary>
-    public void SetJson(string key, JsonNode? node)
-    {
-        if (node is null)
-        {
-            if (_values.Remove(key))
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(key));
-
-            return;
-        }
-
-        var element = JsonSerializer.SerializeToElement(node);
         _values[key] = element;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(key));
     }

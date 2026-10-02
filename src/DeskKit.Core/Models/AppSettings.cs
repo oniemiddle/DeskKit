@@ -4,7 +4,7 @@ namespace DeskKit.Core.Models;
 public sealed record AppSettings
 {
     /// <summary>One of <c>System</c>, <c>Light</c> or <c>Dark</c>.</summary>
-    public string Theme { get; init; } = "System";
+    public string Theme { get; init; } = ThemeSetting.System;
 
     /// <summary>
     /// The UI language: <c>System</c> to follow the machine, or a culture name such

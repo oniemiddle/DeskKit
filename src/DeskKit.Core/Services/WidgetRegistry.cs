@@ -25,6 +25,4 @@ public sealed class WidgetRegistry
 
     public IWidgetProvider? Find(string widgetId) =>
         _byId.GetValueOrDefault(widgetId);
-
-    public bool Contains(string widgetId) => _byId.ContainsKey(widgetId);
 }

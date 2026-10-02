@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DeskKit.App.Localization;
 using DeskKit.App.Services;
+using DeskKit.Core;
 using DeskKit.Core.Models;
 using DeskKit.Widgets.Localization;
 
@@ -26,7 +27,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _shell.StateChanged += OnShellStateChanged;
         _language.CultureChanged += OnCultureChanged;
 
-        ThemeOptions = [new("System"), new("Light"), new("Dark")];
+        ThemeOptions = [.. ThemeSetting.Offered.Select(key => new ChoiceOption(key))];
         LanguageOptions =
         [
             new(LanguageSetting.System),
@@ -147,9 +148,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             option.Label = option.Key switch
             {
-                "Light" => LinguaText.Of(AppLanguage.Instance.Theme_Light),
-                "Dark" => LinguaText.Of(AppLanguage.Instance.Theme_Dark),
-                _ => LinguaText.Of(AppLanguage.Instance.Theme_System),
+                ThemeSetting.Light => AppLanguage.Instance.Theme_Light.CurrentText(),
+                ThemeSetting.Dark => AppLanguage.Instance.Theme_Dark.CurrentText(),
+                _ => AppLanguage.Instance.Theme_System.CurrentText(),
             };
         }
 
@@ -160,7 +161,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             // name in a language they are trying to leave is not.
             option.Label = option.Key switch
             {
-                LanguageSetting.System => LinguaText.Of(AppLanguage.Instance.Language_System),
+                LanguageSetting.System => AppLanguage.Instance.Language_System.CurrentText(),
                 "zh-Hans" => "简体中文",
                 "en" => "English",
                 _ => option.Key,
@@ -216,11 +217,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (_loading)
             return;
 
-        _shell.ApplySettings(
-            SelectedTheme?.Key ?? "System",
-            StartWithWindows,
-            ShowTrayIcon,
-            SelectedLanguage?.Key ?? LanguageSetting.System);
+        // Built from the live state rather than from what this window holds, so that
+        // the preferences it does not show — whether widgets are visible, for one —
+        // are carried through instead of being reset to whatever the window last saw.
+        _shell.ApplySettings(_shell.State.Settings with
+        {
+            Theme = SelectedTheme?.Key ?? ThemeSetting.System,
+            StartWithWindows = StartWithWindows,
+            ShowTrayIcon = ShowTrayIcon,
+            Language = SelectedLanguage?.Key ?? LanguageSetting.System,
+        });
     }
 }
 

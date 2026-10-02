@@ -73,8 +73,5 @@ public static class AppPaths
     public static string LegacyConfigPath { get; } =
         Path.Combine(LegacyDataDirectory, LegacyConfigFileName);
 
-    public static string LogDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        AppName,
-        "logs");
+    public static string LogDirectory { get; } = Path.Combine(DataDirectory, "logs");
 }

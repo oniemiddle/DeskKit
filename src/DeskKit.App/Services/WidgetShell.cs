@@ -60,51 +60,6 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         IAutoStartService autoStart,
         TickService tickService,
         ThemeService themeService,
-        ILogger<WidgetShell> logger)
-        : this(
-            stateStore,
-            registry,
-            desktopLayer,
-            autoStart,
-            tickService,
-            themeService,
-            new NullWindowMaterialService(),
-            new LanguageService(),
-            NullNoticePresenter.Instance,
-            logger)
-    {
-    }
-
-    public WidgetShell(
-        StateStore stateStore,
-        WidgetRegistry registry,
-        IDesktopLayerService desktopLayer,
-        IAutoStartService autoStart,
-        TickService tickService,
-        ThemeService themeService,
-        IWindowMaterialService materials,
-        ILogger<WidgetShell> logger)
-        : this(
-            stateStore,
-            registry,
-            desktopLayer,
-            autoStart,
-            tickService,
-            themeService,
-            materials,
-            new LanguageService(),
-            NullNoticePresenter.Instance,
-            logger)
-    {
-    }
-
-    public WidgetShell(
-        StateStore stateStore,
-        WidgetRegistry registry,
-        IDesktopLayerService desktopLayer,
-        IAutoStartService autoStart,
-        TickService tickService,
-        ThemeService themeService,
         IWindowMaterialService materials,
         LanguageService languageService,
         INoticePresenter notices,
@@ -356,11 +311,11 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         switch (report.Outcome)
         {
             case StoreOutcome.Unavailable:
-                lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_Unavailable));
+                lines.Add(AppLanguage.Instance.Notice_Unavailable.CurrentText());
                 break;
 
             case StoreOutcome.NewerSchema:
-                lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_NewerSchema));
+                lines.Add(AppLanguage.Instance.Notice_NewerSchema.CurrentText());
                 break;
 
             default:
@@ -369,11 +324,11 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                 // outcomes above already say that nothing was read at all, so line by
                 // line detail would only bury them.
                 if (report.Problems.Count > 0)
-                    lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_DataProblem));
+                    lines.Add(AppLanguage.Instance.Notice_DataProblem.CurrentText());
                 break;
         }
 
-        var title = LinguaText.Of(AppLanguage.Instance.Notice_Title);
+        var title = AppLanguage.Instance.Notice_Title.CurrentText();
 
         _notices.Show(new Notice(
             title,
@@ -803,29 +758,30 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         return window;
     }
 
-    public void ApplySettings(string theme, bool startWithWindows, bool showTrayIcon, string language)
+    /// <summary>
+    /// Stores a whole set of preferences and makes the running application match.
+    /// </summary>
+    /// <remarks>
+    /// A record rather than four parameters, because the four were exactly the fields
+    /// of <see cref="AppSettings"/>: passing them one by one meant two adjacent
+    /// strings that a caller could swap without the compiler noticing.
+    /// </remarks>
+    public void ApplySettings(AppSettings settings)
     {
-        State = State with
-        {
-            Settings = State.Settings with
-            {
-                Theme = theme,
-                StartWithWindows = startWithWindows,
-                ShowTrayIcon = showTrayIcon,
-                Language = language,
-            },
-        };
+        ArgumentNullException.ThrowIfNull(settings);
 
-        _themeService.Apply(theme);
+        State = State with { Settings = settings };
 
-        if (!string.Equals(Language.Setting, language, StringComparison.Ordinal))
-            Language.Apply(language);
+        _themeService.Apply(settings.Theme);
 
-        if (_autoStart.IsSupported && _autoStart.IsEnabled != startWithWindows)
+        if (!string.Equals(Language.Setting, settings.Language, StringComparison.Ordinal))
+            Language.Apply(settings.Language);
+
+        if (_autoStart.IsSupported && _autoStart.IsEnabled != settings.StartWithWindows)
         {
             try
             {
-                _autoStart.SetEnabled(startWithWindows);
+                _autoStart.SetEnabled(settings.StartWithWindows);
             }
             catch (Exception ex)
             {
@@ -834,7 +790,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         }
 
         if (_trayIcon is not null)
-            _trayIcon.IsVisible = showTrayIcon;
+            _trayIcon.IsVisible = settings.ShowTrayIcon;
 
         foreach (var widget in _widgets)
             widget.Window.CardBackground = ThemeService.CardBrushFor(_material);
@@ -887,8 +843,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         // the click and the culture change go through the same refresh.
         var toggle = new NativeMenuItem();
         void RefreshToggle() => toggle.Header = State.Settings.WidgetsVisible
-            ? LinguaText.Of(AppLanguage.Instance.Tray_HideAll)
-            : LinguaText.Of(AppLanguage.Instance.Tray_ShowAll);
+            ? AppLanguage.Instance.Tray_HideAll.CurrentText()
+            : AppLanguage.Instance.Tray_ShowAll.CurrentText();
 
         toggle.Click += (_, _) =>
         {

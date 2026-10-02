@@ -709,6 +709,127 @@ internal sealed partial class DesktopLayerSelfTest
         await CheckDegradedStorageNoticeAsync();
         await CheckNoticeWindowAsync();
         await CheckWriteSurvivesBeingKilledAsync();
+        await CheckTickOrderAsync();
+    }
+
+    /// <summary>
+    /// A widget must not be ticked before it has started.
+    /// </summary>
+    /// <remarks>
+    /// The order widgets are written against is shown, then started, then ticked: a tick
+    /// that arrived while a view model was still starting would reach a view that does
+    /// not exist yet. This is the only place that order can be observed. The tick comes
+    /// from a dispatcher timer on the UI thread and the start runs synchronously on that
+    /// same thread, so in a unit test no tick can interleave the start, and a test
+    /// written there would pass whichever order the code used. Here the widget itself
+    /// reports, from inside its own start, how many widgets are already on the shared
+    /// timer.
+    /// </remarks>
+    private async Task CheckTickOrderAsync()
+    {
+        Section("21. tick ordering");
+
+        var directory = Path.Combine(
+            Path.GetTempPath(), "deskkit-tick-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var ticks = new TickService(TimeSpan.FromMilliseconds(50));
+        var probe = new TickProbeProvider(ticks);
+
+        // The real registry plus the probe, so the probe shares the timer with the
+        // seeded clock: the question is whether the timer holds a widget that has not
+        // finished starting, not whether a timer exists.
+        var registry = BuiltInRegistry();
+        registry.Register(probe);
+
+        var shell = CreateShell(directory, registry: registry, ticks: ticks);
+
+        try
+        {
+            shell.Start();
+            await Delay(400);
+
+            // Whatever the seeded widgets left behind. Read rather than assumed to be
+            // zero, because the timer is shared with every other widget.
+            var subscribedBefore = ticks.SubscriberCount;
+            Note($"subscribed before : {subscribedBefore}");
+
+            Check("a widget can be added to a running shell", shell.AddWidget(probe) is not null);
+
+            if (probe.Created is not { } viewModel)
+            {
+                Fail("the probe widget started", "it was never created");
+                return;
+            }
+
+            Check("a widget is not on the shared timer while it is still starting",
+                viewModel.SubscribersWhileStarting == subscribedBefore,
+                $"before={subscribedBefore}, during start={viewModel.SubscribersWhileStarting}");
+
+            Check("a widget is on the shared timer once it has started",
+                ticks.SubscriberCount == subscribedBefore + 1,
+                $"subscribers={ticks.SubscriberCount}");
+
+            await Delay(400);
+
+            Check("the tick reaches a running widget",
+                viewModel.Ticks > 0,
+                $"ticks={viewModel.Ticks}");
+
+            var ticksBeforeRemoval = viewModel.Ticks;
+            shell.RemoveWidget(viewModel);
+            await Delay(300);
+
+            Check("a widget that was removed is off the shared timer",
+                ticks.SubscriberCount == subscribedBefore,
+                $"subscribers={ticks.SubscriberCount}");
+
+            Check("a widget that was removed is not ticked again",
+                viewModel.Ticks == ticksBeforeRemoval,
+                $"{ticksBeforeRemoval} -> {viewModel.Ticks}");
+        }
+        catch (Exception ex)
+        {
+            Fail("the tick ordering ran", ex.Message);
+        }
+        finally
+        {
+            shell.Dispose();
+            RemoveTemporary(directory);
+        }
+    }
+
+    /// <summary>Registers the tick probe, and hands its widget back for inspection.</summary>
+    private sealed class TickProbeProvider(TickService ticks) : IWidgetProvider
+    {
+        public const string WidgetId = "selftest.tick-probe";
+
+        public WidgetDescriptor Descriptor { get; } = new(
+            WidgetId, "Tick_Probe", null, 220, 120, 120, 80, PreventActivation: true);
+
+        public TickProbeViewModel? Created { get; private set; }
+
+        public WidgetViewModel Create(WidgetContext context) =>
+            Created = new TickProbeViewModel(context, ticks);
+    }
+
+    /// <summary>
+    /// A widget whose only job is to report what it sees while it starts, and to count
+    /// the ticks it is given once it is running.
+    /// </summary>
+    private sealed class TickProbeViewModel(WidgetContext context, TickService ticks)
+        : WidgetViewModel(context), ITickAware
+    {
+        /// <summary>How many widgets were on the shared timer as this one started.</summary>
+        public int SubscribersWhileStarting { get; private set; } = -1;
+
+        public int Ticks { get; private set; }
+
+        public override Control CreateView() => new TextBlock { Text = "tick probe" };
+
+        public override void Start() => SubscribersWhileStarting = ticks.SubscriberCount;
+
+        public void OnTick(DateTimeOffset now) => Ticks++;
     }
 
     /// <summary>

@@ -273,13 +273,14 @@ internal sealed partial class DesktopLayerSelfTest
         IDesktopLayerService? desktopLayer = null,
         INoticePresenter? notices = null,
         LanguageService? language = null,
-        IWidgetMessageBus? messages = null) =>
+        IWidgetMessageBus? messages = null,
+        TickService? ticks = null) =>
         new(
             store ?? new StateStore(Path.Combine(directory, AppPaths.DatabaseFileName), directory),
             registry ?? BuiltInRegistry(),
             desktopLayer ?? new WindowsDesktopLayerService(),
             new NullAutoStartService(),
-            new TickService(),
+            ticks ?? new TickService(),
             new ThemeService(),
             new NullWindowMaterialService(),
             language ?? new LanguageService(),

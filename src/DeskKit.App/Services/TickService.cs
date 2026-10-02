@@ -26,6 +26,14 @@ public sealed class TickService : IDisposable
         _timer.Tick += OnTick;
     }
 
+    /// <summary>How many widgets are currently subscribed to the shared tick.</summary>
+    /// <remarks>
+    /// Read by the desktop self test, which is the only place the order of "start, then
+    /// subscribe" can be observed: it asks the timer, from inside a widget's own start,
+    /// how many widgets are already on it.
+    /// </remarks>
+    internal int SubscriberCount => _subscribers.Count;
+
     public void Subscribe(ITickAware subscriber) => _subscribers.Add(subscriber);
 
     public void Unsubscribe(ITickAware subscriber) => _subscribers.Remove(subscriber);

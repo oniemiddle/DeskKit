@@ -14,6 +14,7 @@
     <!-- Needed only so the Shell icon loader can hand back an Avalonia bitmap. -->
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
 </Project>

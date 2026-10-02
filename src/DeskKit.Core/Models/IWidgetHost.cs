@@ -1,8 +1,16 @@
+using DeskKit.Core.Abstractions;
+
 namespace DeskKit.Core.Models;
 
 /// <summary>Services a widget may use without knowing anything about the shell.</summary>
 public interface IWidgetHost
 {
+    /// <summary>
+    /// Sends and receives explicit data contracts between widgets without giving
+    /// one widget a reference to another widget's implementation.
+    /// </summary>
+    IWidgetMessageBus Messages { get; }
+
     /// <summary>Current monitor layout, in physical pixels.</summary>
     IReadOnlyList<ScreenBounds> Screens { get; }
 

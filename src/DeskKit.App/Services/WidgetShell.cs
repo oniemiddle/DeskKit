@@ -40,6 +40,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly INoticePresenter _notices;
+    private readonly IWidgetMessageBus _messages;
     private readonly List<WidgetRuntime> _widgets = [];
 
     /// <summary>The material every widget window carries, already resolved.</summary>
@@ -63,6 +64,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         IWindowMaterialService materials,
         LanguageService languageService,
         INoticePresenter notices,
+        IWidgetMessageBus messages,
         ILogger<WidgetShell> logger)
     {
         _stateStore = stateStore;
@@ -74,6 +76,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _materials = materials;
         Language = languageService;
         _notices = notices;
+        _messages = messages;
         _logger = logger;
 
         // Resolved once, at construction, because the answer changes the layout of
@@ -114,6 +117,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     // ---- IWidgetHost -----------------------------------------------------
 
     public IReadOnlyList<ScreenBounds> Screens => ScreenProbe.GetScreens();
+
+    public IWidgetMessageBus Messages => _messages;
 
     public void ShowSettings(WidgetViewModel widget)
     {

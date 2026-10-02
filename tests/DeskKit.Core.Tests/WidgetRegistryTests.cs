@@ -28,17 +28,46 @@ public sealed class WidgetRegistryTests
     }
 
     [Fact]
-    public void Register_IgnoresADuplicateId()
+    public void Register_RejectsADuplicateId()
     {
         var registry = new WidgetRegistry();
         var first = new StubProvider("clock");
         var second = new StubProvider("clock");
 
         registry.Register(first);
-        registry.Register(second);
+        var exception = Assert.Throws<ArgumentException>(() => registry.Register(second));
 
         Assert.Same(first, registry.Find("clock"));
         Assert.Single(registry.Providers);
+        Assert.Contains("clock", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Constructor_RegistersProvidersInCompositionOrder()
+    {
+        var registry = new WidgetRegistry([
+            new StubProvider("clock"),
+            new StubProvider("note"),
+        ]);
+
+        Assert.Equal(["clock", "note"], registry.Providers.Select(provider => provider.Descriptor.Id));
+    }
+
+    [Fact]
+    public void Register_RejectsAnEmptyId()
+    {
+        var registry = new WidgetRegistry();
+
+        Assert.Throws<ArgumentException>(() => registry.Register(new StubProvider(" ")));
+    }
+
+    [Fact]
+    public void TryRegister_ReturnsFalseForAnOptionalDuplicate()
+    {
+        var registry = new WidgetRegistry();
+
+        Assert.True(registry.TryRegister(new StubProvider("clock")));
+        Assert.False(registry.TryRegister(new StubProvider("clock")));
     }
 
     [Fact]

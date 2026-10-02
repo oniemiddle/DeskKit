@@ -415,6 +415,7 @@ internal sealed partial class DesktopLayerSelfTest
         Section("19. notice window");
 
         var window = new NoticeWindow(
+            new WindowsNotificationWindowStyler(),
             AppLanguage.Instance.Notice_Title.CurrentText(),
             AppLanguage.Instance.Notice_Unavailable.CurrentText());
 

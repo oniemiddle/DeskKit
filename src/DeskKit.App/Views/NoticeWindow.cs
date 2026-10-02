@@ -2,7 +2,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using DeskKit.App.Services;
-using DeskKit.Platform.Windows;
+using DeskKit.Platform;
 using DeskKit.Runtime;
 
 namespace DeskKit.App.Views;
@@ -34,6 +34,8 @@ namespace DeskKit.App.Views;
 /// </remarks>
 internal sealed class NoticeWindow : Window
 {
+    private readonly INotificationWindowStyler _styler;
+
     /// <summary>
     /// Longer than a passing toast on purpose: this says the work in this session
     /// will not be kept, which is not something to read at a glance.
@@ -45,8 +47,11 @@ internal sealed class NoticeWindow : Window
 
     private const double CardWidth = 400;
 
-    public NoticeWindow(string title, string message)
+    public NoticeWindow(INotificationWindowStyler styler, string title, string message)
     {
+        ArgumentNullException.ThrowIfNull(styler);
+
+        _styler = styler;
         Title = "DeskKit";
         WindowDecorations = WindowDecorations.None;
         CanResize = false;
@@ -97,7 +102,7 @@ internal sealed class NoticeWindow : Window
         base.OnOpened(e);
 
         if (OperatingSystem.IsWindows())
-            NotificationWindowStyling.Apply(this);
+            _styler.Apply(this);
 
         // Set here rather than in the constructor. A property set before the window
         // exists never reaches the platform window, and the notice then ends up behind

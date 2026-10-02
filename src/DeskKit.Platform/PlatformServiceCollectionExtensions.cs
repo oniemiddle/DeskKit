@@ -38,6 +38,11 @@ public static class PlatformServiceCollectionExtensions
                 ? new WindowsShellIconLoader()
                 : new NullShellIconLoader());
 
+        services.AddSingleton<INotificationWindowStyler>(_ =>
+            OperatingSystem.IsWindows()
+                ? new WindowsNotificationWindowStyler()
+                : NullNotificationWindowStyler.Instance);
+
         return services;
     }
 }

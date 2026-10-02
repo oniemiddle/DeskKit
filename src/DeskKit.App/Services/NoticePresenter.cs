@@ -1,4 +1,5 @@
 using DeskKit.Core.Abstractions;
+using DeskKit.Platform;
 using Avalonia.Threading;
 using DeskKit.App.Views;
 
@@ -9,8 +10,17 @@ namespace DeskKit.App.Services;
 /// </summary>
 internal sealed class NoticePresenter : INoticePresenter
 {
+    private readonly INotificationWindowStyler _styler;
+
     private NoticeWindow? _current;
     private DispatcherTimer? _timer;
+
+    public NoticePresenter(INotificationWindowStyler styler)
+    {
+        ArgumentNullException.ThrowIfNull(styler);
+
+        _styler = styler;
+    }
 
     public void Show(Notice notice)
     {
@@ -19,7 +29,7 @@ internal sealed class NoticePresenter : INoticePresenter
         // One at a time: two notices stacked in the same corner would overlap.
         Close();
 
-        var window = new NoticeWindow(notice.Title, notice.Message);
+        var window = new NoticeWindow(_styler, notice.Title, notice.Message);
 
         window.Closed += (_, _) =>
         {

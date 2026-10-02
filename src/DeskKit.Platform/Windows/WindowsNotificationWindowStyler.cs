@@ -1,11 +1,10 @@
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
 namespace DeskKit.Platform.Windows;
 
 /// <summary>
-/// Makes a window behave like a notification rather than a window in its own right:
-/// out of the taskbar, out of Alt+Tab, and never activated.
+/// The Windows implementation of <see cref="INotificationWindowStyler"/>.
 /// </summary>
 /// <remarks>
 /// Avalonia's <c>ShowInTaskbar</c> and <c>ShowActivated</c> cover less than they
@@ -15,15 +14,13 @@ namespace DeskKit.Platform.Windows;
 /// Clicking still works: a window that may not be activated still receives the
 /// mouse.
 /// </remarks>
-public static class NotificationWindowStyling
+public sealed class WindowsNotificationWindowStyler : INotificationWindowStyler
 {
     private static readonly IntPtr HwndTopmost = new(-1);
 
-    /// <summary>
-    /// Applies the styles. Must be called once the window has a platform handle,
-    /// i.e. after it has been shown.
-    /// </summary>
-    public static void Apply(Window window)
+    public bool IsSupported => OperatingSystem.IsWindows();
+
+    public void Apply(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
 

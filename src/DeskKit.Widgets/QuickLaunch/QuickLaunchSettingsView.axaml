@@ -1,32 +1,37 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ql="using:DeskKit.Widgets.QuickLaunch"
+             xmlns:loc="using:DeskKit.Widgets.Localization"
              x:Class="DeskKit.Widgets.QuickLaunch.QuickLaunchSettingsView"
              x:DataType="ql:QuickLaunchViewModel">
 
     <StackPanel Spacing="14">
-        <TextBlock FontWeight="SemiBold" Text="快捷启动器" />
+        <TextBlock FontWeight="SemiBold" Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Title}}" />
 
         <TextBlock Opacity="0.7"
                    TextWrapping="Wrap"
-                   Text="把文件、快捷方式或文件夹直接拖到桌面上的启动器里即可添加。" />
+                   Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Hint}}" />
 
         <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Name="BrowseButton" Content="添加文件…" Click="OnBrowseClick" />
-            <TextBox Name="UrlBox" Width="200" PlaceholderText="或输入网址" />
-            <Button Content="添加网址" Click="OnAddUrlClick" />
+            <Button Name="BrowseButton"
+                    Content="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_AddFile}}"
+                    Click="OnBrowseClick" />
+            <TextBox Name="UrlBox"
+                     Width="200"
+                     PlaceholderText="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_UrlPlaceholder}}" />
+            <Button Content="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_AddUrl}}"
+                    Click="OnAddUrlClick" />
         </StackPanel>
 
         <StackPanel Spacing="4">
-            <TextBlock Text="图标大小" />
-            <Slider Minimum="20"
+            <TextBlock Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_IconSize}}" />            <Slider Minimum="20"
                     Maximum="72"
                     TickFrequency="2"
                     IsSnapToTickEnabled="True"
                     Value="{Binding IconSize}" />
         </StackPanel>
 
-        <TextBlock Text="已添加的条目" FontWeight="SemiBold" />
+        <TextBlock Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Items}}" FontWeight="SemiBold" />
 
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
@@ -40,7 +45,7 @@
                                        Text="{Binding Target}" />
                         </StackPanel>
                         <Button Grid.Column="1"
-                                Content="移除"
+                                Content="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Remove}}"
                                 Command="{Binding RemoveFromWidgetCommand}" />
                     </Grid>
                 </DataTemplate>

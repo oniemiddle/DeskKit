@@ -7,6 +7,13 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Irihi.Lingua" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Lingua source generator reads the resource files from here and turns
+         each key into a strongly-typed observable property. -->
+    <AdditionalFiles Include="Resources\**\*.json" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using DeskKit.Core;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.Widgets.QuickLaunch;
 
@@ -18,13 +20,18 @@ public partial class QuickLaunchSettingsView : UserControl
         if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
             return;
 
+        // Read at the moment the dialog opens rather than bound once, so the
+        // dialog is in whatever language is active when it is actually shown.
         var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "添加快捷方式",
+            Title = WidgetLanguage.Instance.Launch_AddShortcutTitle.CurrentValue(),
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType("程序与快捷方式") { Patterns = ["*.exe", "*.lnk", "*.bat", "*.cmd"] },
+                new FilePickerFileType(WidgetLanguage.Instance.Launch_ProgramsFilter.CurrentValue())
+                {
+                    Patterns = ["*.exe", "*.lnk", "*.bat", "*.cmd"],
+                },
                 FilePickerFileTypes.All,
             ],
         });

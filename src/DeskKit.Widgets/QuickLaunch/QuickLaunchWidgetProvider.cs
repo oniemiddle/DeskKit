@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.Widgets.QuickLaunch;
 
@@ -13,8 +14,8 @@ public sealed class QuickLaunchWidgetProvider(IShellIconLoader iconLoader) : IWi
 
     public WidgetDescriptor Descriptor { get; } = new(
         Id: WidgetId,
-        DisplayName: "快捷启动器",
-        Description: "把常用应用、文件和网址放在桌面上",
+        DisplayName: WidgetText.QuickLaunchName,
+        Description: WidgetText.QuickLaunchDescription,
         DefaultWidth: 300,
         DefaultHeight: 150,
         MinWidth: 140,

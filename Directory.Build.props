@@ -10,7 +10,9 @@
     <Version>0.1.0</Version>
     <Product>DeskKit</Product>
     <Authors>DeskKit contributors</Authors>
-    <NeutralLanguage>zh-Hans</NeutralLanguage>
+    <!-- The language the resource files that carry no culture of their own are
+         written in; see the JSON under src/*/Resources. -->
+    <NeutralLanguage>en</NeutralLanguage>
 
     <!-- Compile every XAML binding so binding errors fail the build instead of
          silently producing a blank widget at runtime. Each view must declare

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.Widgets.StickyNote;
 
@@ -11,8 +12,8 @@ public sealed class StickyNoteWidgetProvider : IWidgetProvider
 
     public WidgetDescriptor Descriptor { get; } = new(
         Id: WidgetId,
-        DisplayName: "便签",
-        Description: "可以随手打字的桌面便签",
+        DisplayName: WidgetText.StickyNoteName,
+        Description: WidgetText.StickyNoteDescription,
         DefaultWidth: 280,
         DefaultHeight: 220,
         MinWidth: 160,

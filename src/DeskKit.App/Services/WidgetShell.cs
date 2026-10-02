@@ -3,13 +3,16 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DeskKit.App.Localization;
 using DeskKit.App.ViewModels;
 using DeskKit.App.Views;
+using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
 using DeskKit.Widgets.Clock;
+using DeskKit.Widgets.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace DeskKit.App.Services;
@@ -35,6 +38,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly IAutoStartService _autoStart;
     private readonly TickService _tickService;
     private readonly ThemeService _themeService;
+    private readonly LanguageService _languageService;
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly List<WidgetRuntime> _widgets = [];
@@ -66,6 +70,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             tickService,
             themeService,
             new NullWindowMaterialService(),
+            new LanguageService(),
             logger)
     {
     }
@@ -79,6 +84,29 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         ThemeService themeService,
         IWindowMaterialService materials,
         ILogger<WidgetShell> logger)
+        : this(
+            configStore,
+            registry,
+            desktopLayer,
+            autoStart,
+            tickService,
+            themeService,
+            materials,
+            new LanguageService(),
+            logger)
+    {
+    }
+
+    public WidgetShell(
+        ConfigStore configStore,
+        WidgetRegistry registry,
+        IDesktopLayerService desktopLayer,
+        IAutoStartService autoStart,
+        TickService tickService,
+        ThemeService themeService,
+        IWindowMaterialService materials,
+        LanguageService languageService,
+        ILogger<WidgetShell> logger)
     {
         _configStore = configStore;
         _registry = registry;
@@ -87,6 +115,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _tickService = tickService;
         _themeService = themeService;
         _materials = materials;
+        _languageService = languageService;
         _logger = logger;
 
         // Resolved once, at construction, because the answer changes the layout of
@@ -95,6 +124,9 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _material = materials.Resolve(materials.Default);
         _surfaceMargin = WidgetWindow.MarginFor(_material);
     }
+
+    /// <summary>The language preference and the managers it drives.</summary>
+    internal LanguageService Language => _languageService;
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
 
@@ -108,7 +140,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             .Select(w => new WidgetInfo(
                 w.Placement.InstanceId,
                 w.Placement.WidgetId,
-                _registry.Find(w.Placement.WidgetId)?.Descriptor.DisplayName ?? w.Placement.WidgetId,
+
+                // Resolved now rather than carried from the descriptor, which holds
+                // a resource key. The settings window re-reads this list whenever the
+                // culture changes, so the names follow the language.
+                WidgetText.Value(
+                    _registry.Find(w.Placement.WidgetId)?.Descriptor.DisplayName
+                    ?? w.Placement.WidgetId),
                 w.ViewModel))
             .ToList();
 
@@ -144,6 +182,10 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         }
 
         _themeService.Apply(State.Settings.Theme);
+
+        // Before any widget is created, so the first window it builds is already
+        // titled in the right language.
+        _languageService.Apply(State.Settings.Language);
 
         var normalized = PlacementNormalizer.EnsureAllOnScreen(State.Widgets, Screens);
         State = State with { Widgets = [.. normalized] };
@@ -246,7 +288,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         var window = new WidgetWindow(_desktopLayer, _materials, _material)
         {
-            Title = descriptor.DisplayName,
+            Title = WidgetText.Value(descriptor.DisplayName),
             AcceptsKeyboardFocus = !descriptor.PreventActivation,
             Icon = GetAppIcon(),
             CardBackground = ThemeService.CardBrushFor(_material),
@@ -519,11 +561,15 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         var menu = new ContextMenu();
 
-        var settings = new MenuItem { Header = "设置…" };
+        // Subscribing sets the current text and keeps it right afterwards, because
+        // the observable emits the value it already has on subscribe.
+        var settings = new MenuItem();
+        AppLanguage.Instance.Menu_Settings.SubscribeAction(text => settings.Header = text);
         settings.Click += (_, _) => OpenSettings(runtime);
         menu.Items.Add(settings);
 
-        var remove = new MenuItem { Header = "移除" };
+        var remove = new MenuItem();
+        AppLanguage.Instance.Menu_Remove.SubscribeAction(text => remove.Header = text);
         remove.Click += (_, _) => Remove(runtime);
         menu.Items.Add(remove);
 
@@ -557,7 +603,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         return window;
     }
 
-    public void ApplySettings(string theme, bool startWithWindows, bool showTrayIcon)
+    public void ApplySettings(string theme, bool startWithWindows, bool showTrayIcon, string language)
     {
         State = State with
         {
@@ -566,10 +612,14 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                 Theme = theme,
                 StartWithWindows = startWithWindows,
                 ShowTrayIcon = showTrayIcon,
+                Language = language,
             },
         };
 
         _themeService.Apply(theme);
+
+        if (!string.Equals(_languageService.Setting, language, StringComparison.Ordinal))
+            _languageService.Apply(language);
 
         if (_autoStart.IsSupported && _autoStart.IsEnabled != startWithWindows)
         {
@@ -612,34 +662,63 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         var addMenu = new NativeMenu();
         foreach (var provider in _registry.Providers)
         {
-            var item = new NativeMenuItem(provider.Descriptor.DisplayName);
+            var item = new NativeMenuItem();
             var captured = provider;
             item.Click += (_, _) => AddWidget(captured);
             addMenu.Add(item);
+
+            // Live, so a language change renames the entries in place instead of
+            // leaving the tray in the language it happened to start in.
+            if (WidgetText.Observable(provider.Descriptor.DisplayName) is { } name)
+                name.SubscribeAction(text => item.Header = text);
+            else
+                item.Header = provider.Descriptor.DisplayName;
         }
 
         var menu = new NativeMenu();
-        menu.Add(new NativeMenuItem("添加组件") { Menu = addMenu });
+
+        var add = new NativeMenuItem { Menu = addMenu };
+        AppLanguage.Instance.Tray_AddWidget.SubscribeAction(text => add.Header = text);
+        menu.Add(add);
+
         menu.Add(new NativeMenuItemSeparator());
 
-        var toggle = new NativeMenuItem(State.Settings.WidgetsVisible ? "隐藏全部组件" : "显示全部组件");
+        // The header depends on the widget state as well as the language, so both
+        // the click and the culture change go through the same refresh.
+        var toggle = new NativeMenuItem();
+        void RefreshToggle() => toggle.Header = State.Settings.WidgetsVisible
+            ? LinguaText.Of(AppLanguage.Instance.Tray_HideAll)
+            : LinguaText.Of(AppLanguage.Instance.Tray_ShowAll);
+
         toggle.Click += (_, _) =>
         {
             SetWidgetsVisible(!State.Settings.WidgetsVisible);
-            toggle.Header = State.Settings.WidgetsVisible ? "隐藏全部组件" : "显示全部组件";
+            RefreshToggle();
         };
+
         menu.Add(toggle);
 
-        var settings = new NativeMenuItem("设置…");
+        var settings = new NativeMenuItem();
+        AppLanguage.Instance.Tray_Settings.SubscribeAction(text => settings.Header = text);
         settings.Click += (_, _) => OpenSettings(null);
         menu.Add(settings);
 
         menu.Add(new NativeMenuItemSeparator());
 
-        var exit = new NativeMenuItem("退出");
+        var exit = new NativeMenuItem();
+        AppLanguage.Instance.Tray_Exit.SubscribeAction(text => exit.Header = text);
         exit.Click += (_, _) => (Application.Current?.ApplicationLifetime
             as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
         menu.Add(exit);
+
+        // One combined refresh: the toggle needs both the language and the state,
+        // and every other header is already subscribed.
+        void OnCultureChanged(object? sender, EventArgs e) => RefreshToggle();
+
+        RefreshToggle();
+
+        // The shell owns both the service and this handler, so they end together.
+        _languageService.CultureChanged += OnCultureChanged;
 
         _trayIcon = new TrayIcon
         {

@@ -1,0 +1,53 @@
+{
+  "Widget": {
+    "Clock": {
+      "Name": "时钟",
+      "Description": "显示时间和日期"
+    },
+    "StickyNote": {
+      "Name": "便签",
+      "Description": "可以随手打字的桌面便签"
+    },
+    "QuickLaunch": {
+      "Name": "快捷启动器",
+      "Description": "把常用应用、文件和网址放在桌面上"
+    }
+  },
+  "Clock": {
+    "Title": "时钟",
+    "Use24Hour": "24 小时制",
+    "ShowSeconds": "显示秒",
+    "ShowDate": "显示日期",
+    "ShowWeekday": "显示星期",
+    "TimeFontSize": "时间字号"
+  },
+  "Note": {
+    "Title": "便签",
+    "TitlePlaceholder": "标题",
+    "BodyPlaceholder": "记点什么…",
+    "PaperColour": "纸张颜色",
+    "FontSize": "字号",
+    "Paper": {
+      "Yellow": "黄色",
+      "Pink": "粉色",
+      "Green": "绿色",
+      "Blue": "蓝色",
+      "Purple": "紫色",
+      "Grey": "灰色"
+    }
+  },
+  "Launch": {
+    "Title": "快捷启动器",
+    "Hint": "把文件、快捷方式或文件夹直接拖到桌面上的启动器里即可添加。",
+    "AddFile": "添加文件…",
+    "UrlPlaceholder": "或输入网址",
+    "AddUrl": "添加网址",
+    "IconSize": "图标大小",
+    "Items": "已添加的条目",
+    "Open": "打开",
+    "Remove": "移除",
+    "DropHint": "把文件、快捷方式或文件夹拖到这里",
+    "AddShortcutTitle": "添加快捷方式",
+    "ProgramsFilter": "程序与快捷方式"
+  }
+}

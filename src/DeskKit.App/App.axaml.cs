@@ -80,6 +80,10 @@ public partial class App : Application
         services.AddSingleton<TickService>();
         services.AddSingleton<ThemeService>();
 
+        // One instance for the whole process: it drives both the shell's and the
+        // widgets' resource managers, and two of them would fight over the culture.
+        services.AddSingleton<LanguageService>();
+
         services.AddSingleton<IDesktopLayerService>(_ =>
             OperatingSystem.IsWindows()
                 ? new WindowsDesktopLayerService()

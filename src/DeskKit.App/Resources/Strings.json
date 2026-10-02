@@ -1,0 +1,44 @@
+{
+  "App": {
+    "Title": "DeskKit settings"
+  },
+  "Tab": {
+    "Appearance": "Appearance",
+    "Startup": "Startup",
+    "Widgets": "Widgets"
+  },
+  "Appearance": {
+    "Theme": "Theme",
+    "Language": "Language",
+    "ShowWidgets": "Show desktop widgets",
+    "ShowTrayIcon": "Show an icon in the notification area",
+    "Hint": "Widgets sit on the wallpaper, below every ordinary window. Win+D or the taskbar's \"Show desktop\" will not hide them."
+  },
+  "Startup": {
+    "StartWithWindows": "Start DeskKit when Windows starts",
+    "Hint": "Registers under the current user's startup items, so no administrator rights are needed, and it can be turned off at any time from the Startup tab in Task Manager."
+  },
+  "Widgets": {
+    "Add": "Add widget",
+    "RemoveSelected": "Remove selected"
+  },
+  "Theme": {
+    "System": "Follow system",
+    "Light": "Light",
+    "Dark": "Dark"
+  },
+  "Language": {
+    "System": "Follow system"
+  },
+  "Menu": {
+    "Settings": "Settings\u2026",
+    "Remove": "Remove"
+  },
+  "Tray": {
+    "AddWidget": "Add widget",
+    "HideAll": "Hide all widgets",
+    "ShowAll": "Show all widgets",
+    "Settings": "Settings\u2026",
+    "Exit": "Exit"
+  }
+}

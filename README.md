@@ -11,9 +11,12 @@ Three widgets ship in the box:
 
 | Widget | What it does |
 | --- | --- |
-| **时钟 (Clock)** | Time and date, 12/24-hour, optional seconds and weekday |
-| **便签 (Sticky note)** | A note you can type into straight on the desktop |
-| **快捷启动器 (Quick launch)** | A grid of shortcuts, fed by dragging files out of Explorer |
+| **Clock** | Time and date, 12/24-hour, optional seconds and weekday |
+| **Sticky note** | A note you can type into straight on the desktop |
+| **Quick launch** | A grid of shortcuts, fed by dragging files out of Explorer |
+
+The interface is available in **English and Simplified Chinese**, and follows the
+system language until you pick one.
 
 ## Status
 
@@ -43,8 +46,9 @@ dotnet test DeskKit.slnx
 ```
 
 The unit tests cover the parts that are pure logic: configuration round-trips,
-corrupt-file recovery, placement clamping, widget settings, and every branch of
-the desktop-layer and window-material decision rules.
+corrupt-file recovery, placement clamping, widget settings, the language
+preference, and every branch of the desktop-layer and window-material decision
+rules.
 
 ### Verifying the desktop behaviour
 
@@ -165,6 +169,61 @@ checks that the card fills the window, that the corners and the shadow moved to
 the platform, that the default background is the material and nothing else, that
 the widget content colours are the right way round for the theme, and that a
 backdrop was really asked for and is live on the window.
+
+### Languages
+
+The interface ships in English and Simplified Chinese, and localisation is done
+with [`Irihi.Lingua`](https://www.nuget.org/packages/Irihi.Lingua): the strings
+live in JSON, and a source generator turns every key into a strongly-typed
+observable property. Switching culture pushes new values to everything that is
+subscribed, so no view has to be rebuilt or reloaded.
+
+```
+src/DeskKit.App/Resources/Strings.json             invariant (English)
+src/DeskKit.App/Resources/Strings.zh-Hans.json     Simplified Chinese
+src/DeskKit.Widgets/Resources/Strings.json         the same, for the widgets
+src/DeskKit.Widgets/Resources/Strings.zh-Hans.json
+```
+
+**There are two managers, not one.** The shell cannot see the widgets' strings and
+the widgets cannot see the shell's, so each layer declares its own `[LinguaManager]`
+class — `AppLanguage` and `WidgetLanguage` — with its own resource files. This is
+the library's decentralised model rather than a workaround, and it keeps the
+existing layering intact: `DeskKit.Core` still has no dependency on the
+localization library, because the only thing a widget descriptor carries is a
+resource **key**, which is not a UI concern. `WidgetText` in the widgets assembly
+maps those keys to their observables, so the keys are constants and a typo is a
+compile error rather than a blank label.
+
+Both managers are driven from one place, `LanguageService` in the shell. Driving
+them separately is what would produce the failure this prevents: a tray menu in one
+language and widget names in another. Two details are worth recording:
+
+- **"Follow system" cannot read `CultureInfo.CurrentUICulture` on demand.** The
+  service overwrites that culture when it applies a preference, so after switching
+  to Chinese, "follow system" would resolve back to Chinese — the setting would
+  pass through the value it was supposed to replace. The machine's own language is
+  therefore captured once, from `CultureInfo.InstalledUICulture`.
+- A stored preference is **not** validated against a list of known cultures. It is
+  passed to the resource lookup as given and falls back to the invariant file, so
+  adding a translation later needs no code change and a config copied from another
+  machine cannot break startup.
+
+What is translated, and how:
+
+| Where | How |
+| --- | --- |
+| XAML (settings window, widget panels) | `{Translate {x:Static ...+Keys.Key}}` |
+| Drop-down choices | The stored **key** is a separate field from the label. The theme picker used to match a selection back from its own display text, which cannot survive the labels being translated — the saved value would depend on the language that was active when it was picked. |
+| Tray and context menus | Subscribed to the observable, so the headers change in place instead of leaving the menu in the language it started in. |
+| Widget names and descriptions | Descriptors carry resource keys; the shell resolves them when it builds a list, and re-reads that list when the culture changes. |
+| File dialog title and filter | Read at the moment the dialog opens, so it is in the language active then. |
+| Sticky note paper names | The note subscribes to the culture change, because its palette is the one piece of widget text that is not in XAML. |
+
+`--selftest` covers this: it checks that every registered widget names a key this
+build owns, that switching language changes what the strings say, that the two
+languages come from the two different resource files, and that an unknown language
+falls back to English rather than blanking the UI.
 
 ### Moving, resizing and snapping
 
@@ -350,8 +409,8 @@ pushing back the edge being dragged rather than by moving the anchored one.
 src/
   DeskKit.Core/        models, configuration, widget contract (no platform code)
   DeskKit.Platform/    OS interop: window pinning, surface materials, shell icons, autostart
-  DeskKit.Widgets/     the built-in widgets
-  DeskKit.App/         Avalonia shell: window host, tray, settings window
+  DeskKit.Widgets/     the built-in widgets and their strings
+  DeskKit.App/         Avalonia shell: window host, tray, settings window, and its strings
 tests/
   DeskKit.Core.Tests/
   DeskKit.Platform.Tests/
@@ -379,6 +438,9 @@ displays.
 1. Implement `IWidgetProvider` (descriptor plus a factory) and a
    `WidgetViewModel` with `CreateView`.
 2. Register it in `BuiltInWidgets.CreateProviders`.
+3. Add its name and description to both `Resources/Strings.json` files under
+   `Widget`, add the matching constants and mappings to `WidgetText`, and point the
+   descriptor at them.
 
 The shell only knows about `IWidgetProvider`, so a future plugin loader can add
 providers from separate assemblies without changing the shell.

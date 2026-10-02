@@ -1,0 +1,44 @@
+{
+  "App": {
+    "Title": "DeskKit 设置"
+  },
+  "Tab": {
+    "Appearance": "外观",
+    "Startup": "启动",
+    "Widgets": "组件"
+  },
+  "Appearance": {
+    "Theme": "主题",
+    "Language": "语言",
+    "ShowWidgets": "显示桌面组件",
+    "ShowTrayIcon": "在通知区域显示图标",
+    "Hint": "组件会贴在壁纸上、位于所有普通窗口的下方。按 Win+D 或点击任务栏的“显示桌面”不会让它们消失。"
+  },
+  "Startup": {
+    "StartWithWindows": "开机时自动启动 DeskKit",
+    "Hint": "在当前用户的启动项中注册，不需要管理员权限，也可以随时在任务管理器的“启动”页里关闭。"
+  },
+  "Widgets": {
+    "Add": "添加组件",
+    "RemoveSelected": "移除选中组件"
+  },
+  "Theme": {
+    "System": "跟随系统",
+    "Light": "浅色",
+    "Dark": "深色"
+  },
+  "Language": {
+    "System": "跟随系统"
+  },
+  "Menu": {
+    "Settings": "设置…",
+    "Remove": "移除"
+  },
+  "Tray": {
+    "AddWidget": "添加组件",
+    "HideAll": "隐藏全部组件",
+    "ShowAll": "显示全部组件",
+    "Settings": "设置…",
+    "Exit": "退出"
+  }
+}

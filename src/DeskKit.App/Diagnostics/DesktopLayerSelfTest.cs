@@ -8,14 +8,18 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using DeskKit.App.Localization;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
+using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
+using DeskKit.Widgets.Clock;
+using DeskKit.Widgets.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 namespace DeskKit.App.Diagnostics;
 
@@ -292,7 +296,103 @@ internal sealed class DesktopLayerSelfTest
         await Delay(200);
 
         CheckWidgetForegroundThemes();
+        CheckLocalization();
     }
+
+    /// <summary>
+    /// Verifies that the app really has two languages and that switching between
+    /// them reaches every string.
+    /// <para>
+    /// Resource keys are looked up by name at runtime, so a descriptor naming a key
+    /// that no resource file defines does not fail to build and does not throw — it
+    /// renders as the key itself, or as nothing. Both are quiet, which is why they
+    /// are checked here rather than assumed.
+    /// </para>
+    /// </summary>
+    private void CheckLocalization()
+    {
+        Section("14. languages");
+
+        var registry = new WidgetRegistry();
+        foreach (var provider in BuiltInWidgets.CreateProviders(new NullShellIconLoader()))
+            registry.Register(provider);
+
+        var language = new LanguageService();
+        Note($"system culture  : {language.SystemCulture.Name}");
+        Note($"offered         : {string.Join(", ", LanguageSetting.Offered)}");
+
+        // Every widget has to be named and described in every language, or the
+        // settings window shows a raw key to the user.
+        var missing = new List<string>();
+
+        foreach (var provider in registry.Providers)
+        {
+            var key = provider.Descriptor.DisplayName;
+            if (WidgetText.Observable(key) is null)
+                missing.Add(key);
+        }
+
+        Check("every widget names a resource key this build owns",
+            missing.Count == 0,
+            missing.Count == 0 ? $"{registry.Providers.Count} widgets" : string.Join(", ", missing));
+
+        // Both languages must actually produce text, and it must differ, or the
+        // second resource file is not being read at all.
+        language.Apply("en");
+        var english = CollectStrings(registry);
+
+        language.Apply("zh-Hans");
+        var chinese = CollectStrings(registry);
+
+        Note($"english sample  : {english.WidgetName}");
+        Note($"chinese sample  : {chinese.WidgetName}");
+
+        Check("the English strings are not empty",
+            english.WidgetName.Length > 0 && english.WindowTitle.Length > 0,
+            $"widget={english.WidgetName} window={english.WindowTitle}");
+
+        Check("switching language changes what the strings say",
+            english.WidgetName != chinese.WidgetName
+            && english.WindowTitle != chinese.WindowTitle,
+            $"widget {english.WidgetName} -> {chinese.WidgetName}, " +
+            $"window {english.WindowTitle} -> {chinese.WindowTitle}");
+
+        Check("the Chinese strings are the Chinese resource file's",
+            chinese.WidgetName == "时钟" && chinese.WindowTitle == "DeskKit 设置",
+            $"widget={chinese.WidgetName} window={chinese.WindowTitle}");
+
+        Check("the English strings are the invariant resource file's",
+            english.WidgetName == "Clock" && english.WindowTitle == "DeskKit settings",
+            $"widget={english.WidgetName} window={english.WindowTitle}");
+
+        // A language the build has never heard of must still leave a working UI.
+        language.Apply("xx-NotReal");
+        Check("an unknown language falls back rather than blanking the UI",
+            WidgetText.Value(WidgetText.ClockName).Length > 0
+            && LinguaText.Of(AppLanguage.Instance.Tray_Exit).Length > 0,
+            $"widget={WidgetText.Value(WidgetText.ClockName)} " +
+            $"tray={LinguaText.Of(AppLanguage.Instance.Tray_Exit)}");
+
+        // Following the system has to reach real resources rather than falling
+        // through to the key, which is what would happen if the hierarchy walk
+        // found nothing. Which language it lands on is the machine's business, so
+        // that part is reported rather than asserted.
+        language.Apply(LanguageSetting.System);
+        var systemName = WidgetText.Value(WidgetText.ClockName);
+
+        Check("following the system resolves to a real language",
+            systemName.Length > 0 && systemName != WidgetText.ClockName,
+            $"system={language.SystemCulture.Name} -> {systemName}");
+    }
+
+    private readonly record struct LanguageSample(string WidgetName, string WindowTitle);
+
+    private static LanguageSample CollectStrings(WidgetRegistry registry) =>
+        new(
+            WidgetText.Value(
+                registry.Find(ClockWidgetProvider.WidgetId)?.Descriptor.DisplayName
+                ?? ClockWidgetProvider.WidgetId),
+            LinguaText.Of(AppLanguage.Instance.App_Title));
 
     /// <summary>
     /// Verifies that widget content is legible against a bare material.
@@ -1193,8 +1293,9 @@ internal sealed class DesktopLayerSelfTest
 
                 sampled++;
 
-                var name = registry.Find(runtime.Placement.WidgetId)?.Descriptor.DisplayName
-                           ?? runtime.Placement.WidgetId;
+                var name = WidgetText.Value(
+                    registry.Find(runtime.Placement.WidgetId)?.Descriptor.DisplayName
+                    ?? runtime.Placement.WidgetId);
                 var window = runtime.Window;
                 var handle = window.DragHandleBounds;
                 var card = window.CardBounds;

@@ -1,21 +1,22 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:note="using:DeskKit.Widgets.StickyNote"
+             xmlns:loc="using:DeskKit.Widgets.Localization"
              x:Class="DeskKit.Widgets.StickyNote.StickyNoteSettingsView"
              x:DataType="note:StickyNoteViewModel">
 
     <StackPanel Spacing="14">
-        <TextBlock FontWeight="SemiBold" Text="便签" />
+        <TextBlock FontWeight="SemiBold" Text="{Translate {x:Static loc:WidgetLanguage+Keys.Note_Title}}" />
 
         <StackPanel Spacing="4">
-            <TextBlock Text="纸张颜色" />
+            <TextBlock Text="{Translate {x:Static loc:WidgetLanguage+Keys.Note_PaperColour}}" />
             <ListBox Height="150"
                      ItemsSource="{Binding PaperNames}"
                      SelectedIndex="{Binding PaperIndex}" />
         </StackPanel>
 
         <StackPanel Spacing="4">
-            <TextBlock Text="字号" />
+            <TextBlock Text="{Translate {x:Static loc:WidgetLanguage+Keys.Note_FontSize}}" />
             <Slider Minimum="10"
                     Maximum="32"
                     TickFrequency="1"

@@ -20,25 +20,24 @@ public sealed partial class ClockViewModel : WidgetViewModel, ITickAware
     private bool _loading = true;
 
     [ObservableProperty]
-    private string _timeText = string.Empty;
+    public partial string TimeText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private string _dateText = string.Empty;
+    public partial string DateText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private bool _use24Hour = true;
+    public partial bool Use24Hour { get; set; }
 
     [ObservableProperty]
-    private bool _showSeconds;
+    public partial bool ShowSeconds { get; set; }
 
     [ObservableProperty]
-    private bool _showDate = true;
+    public partial bool ShowDate { get; set; }
+    [ObservableProperty]
+    public partial bool ShowWeekday { get; set; }
 
     [ObservableProperty]
-    private bool _showWeekday = true;
-
-    [ObservableProperty]
-    private double _timeFontSize = 38;
+    public partial double TimeFontSize { get; set; }
 
     public ClockViewModel(WidgetContext context)
         : base(context)
@@ -59,7 +58,7 @@ public sealed partial class ClockViewModel : WidgetViewModel, ITickAware
 
     public override Control CreateView() => new ClockView { DataContext = this };
 
-    public override Control? CreateSettingsView() => new ClockSettingsView { DataContext = this };
+    public override Control CreateSettingsView() => new ClockSettingsView { DataContext = this };
 
     public void OnTick(DateTimeOffset now)
     {

@@ -1,0 +1,53 @@
+{
+  "Widget": {
+    "Clock": {
+      "Name": "Clock",
+      "Description": "Time and date"
+    },
+    "StickyNote": {
+      "Name": "Sticky note",
+      "Description": "A note you can type straight onto the desktop"
+    },
+    "QuickLaunch": {
+      "Name": "Quick launch",
+      "Description": "Keep your usual apps, files and links on the desktop"
+    }
+  },
+  "Clock": {
+    "Title": "Clock",
+    "Use24Hour": "24-hour clock",
+    "ShowSeconds": "Show seconds",
+    "ShowDate": "Show date",
+    "ShowWeekday": "Show weekday",
+    "TimeFontSize": "Time font size"
+  },
+  "Note": {
+    "Title": "Sticky note",
+    "TitlePlaceholder": "Title",
+    "BodyPlaceholder": "Jot something down…",
+    "PaperColour": "Paper colour",
+    "FontSize": "Font size",
+    "Paper": {
+      "Yellow": "Yellow",
+      "Pink": "Pink",
+      "Green": "Green",
+      "Blue": "Blue",
+      "Purple": "Purple",
+      "Grey": "Grey"
+    }
+  },
+  "Launch": {
+    "Title": "Quick launch",
+    "Hint": "Drag files, shortcuts or folders straight onto the desktop launcher to add them.",
+    "AddFile": "Add file…",
+    "UrlPlaceholder": "Or type a web address",
+    "AddUrl": "Add address",
+    "IconSize": "Icon size",
+    "Items": "Added items",
+    "Open": "Open",
+    "Remove": "Remove",
+    "DropHint": "Drag files, shortcuts or folders here",
+    "AddShortcutTitle": "Add shortcuts",
+    "ProgramsFilter": "Programs and shortcuts"
+  }
+}

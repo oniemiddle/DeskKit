@@ -2,7 +2,10 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DeskKit.App.Localization;
 using DeskKit.App.Services;
+using DeskKit.Core.Models;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.App.ViewModels;
 
@@ -13,29 +16,43 @@ namespace DeskKit.App.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly WidgetShell _shell;
+    private readonly LanguageService _language;
     private bool _loading;
 
     public SettingsViewModel(WidgetShell shell)
     {
         _shell = shell;
+        _language = shell.Language;
         _shell.StateChanged += OnShellStateChanged;
+        _language.CultureChanged += OnCultureChanged;
 
-        AvailableWidgets =
+        ThemeOptions = [new("System"), new("Light"), new("Dark")];
+        LanguageOptions =
         [
-            .. shell.AvailableWidgets.Select(p => new WidgetOption(p.Descriptor.Id, p.Descriptor.DisplayName)),
+            new(LanguageSetting.System),
+            .. LanguageSetting.Offered.Select(offered => new ChoiceOption(offered)),
         ];
 
+        AvailableWidgets = new ObservableCollection<WidgetOption>(
+            shell.AvailableWidgets.Select(p => new WidgetOption(p.Descriptor.Id, p.Descriptor.DisplayName)));
+
+        RefreshLabels();
         LoadFromShell();
     }
 
-    public IReadOnlyList<string> ThemeOptions { get; } = ["跟随系统", "浅色", "深色"];
+    public IReadOnlyList<ChoiceOption> ThemeOptions { get; }
 
-    public IReadOnlyList<WidgetOption> AvailableWidgets { get; }
+    public IReadOnlyList<ChoiceOption> LanguageOptions { get; }
+
+    public ObservableCollection<WidgetOption> AvailableWidgets { get; }
 
     public ObservableCollection<WidgetRow> Widgets { get; } = [];
 
     [ObservableProperty]
-    private string _theme = "跟随系统";
+    private ChoiceOption? _selectedTheme;
+
+    [ObservableProperty]
+    private ChoiceOption? _selectedLanguage;
 
     [ObservableProperty]
     private bool _startWithWindows;
@@ -57,7 +74,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool CanRemoveSelectedWidget => SelectedWidget is not null;
 
-    partial void OnThemeChanged(string value) => PushToShell();
+    partial void OnSelectedThemeChanged(ChoiceOption? value) => PushToShell();
+
+    partial void OnSelectedLanguageChanged(ChoiceOption? value) => PushToShell();
 
     partial void OnStartWithWindowsChanged(bool value) => PushToShell();
 
@@ -110,13 +129,57 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void OnShellStateChanged(object? sender, EventArgs e) => LoadFromShell();
 
+    /// <summary>
+    /// The language changed, so everything this window holds as text has to be
+    /// re-read. The shell's own lists already resolve their names on demand, which
+    /// is why rebuilding the rows is enough for them.
+    /// </summary>
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        RefreshLabels();
+        LoadFromShell();
+    }
+
+    /// <summary>Re-reads every label that depends on the language.</summary>
+    private void RefreshLabels()
+    {
+        foreach (var option in ThemeOptions)
+        {
+            option.Label = option.Key switch
+            {
+                "Light" => LinguaText.Of(AppLanguage.Instance.Theme_Light),
+                "Dark" => LinguaText.Of(AppLanguage.Instance.Theme_Dark),
+                _ => LinguaText.Of(AppLanguage.Instance.Theme_System),
+            };
+        }
+
+        foreach (var option in LanguageOptions)
+        {
+            // A language is listed under its own name rather than a translated one:
+            // "简体中文" is recognisable to the person looking for it, whereas its
+            // name in a language they are trying to leave is not.
+            option.Label = option.Key switch
+            {
+                LanguageSetting.System => LinguaText.Of(AppLanguage.Instance.Language_System),
+                "zh-Hans" => "简体中文",
+                "en" => "English",
+                _ => option.Key,
+            };
+        }
+
+        foreach (var option in AvailableWidgets)
+            option.DisplayName = WidgetText.Value(option.NameKey);
+    }
+
     private void LoadFromShell()
     {
         _loading = true;
 
         try
         {
-            Theme = ToDisplayName(_shell.State.Settings.Theme);
+            Select(ThemeOptions, _shell.State.Settings.Theme, option => SelectedTheme = option);
+            Select(LanguageOptions, _shell.State.Settings.Language, option => SelectedLanguage = option);
+
             StartWithWindows = _shell.State.Settings.StartWithWindows;
             ShowTrayIcon = _shell.State.Settings.ShowTrayIcon;
             WidgetsVisible = _shell.State.Settings.WidgetsVisible;
@@ -137,27 +200,28 @@ public sealed partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRemoveSelectedWidget));
     }
 
+    /// <summary>
+    /// Points a drop-down at the option carrying <paramref name="key"/>, falling
+    /// back to the first entry. A config can name an option this build no longer
+    /// offers, and that must leave the drop-down usable rather than blank.
+    /// </summary>
+    private static void Select(
+        IReadOnlyList<ChoiceOption> options, string key, Action<ChoiceOption?> assign)
+    {
+        assign(options.FirstOrDefault(o => o.Key == key) ?? options.FirstOrDefault());
+    }
+
     private void PushToShell()
     {
         if (_loading)
             return;
 
-        _shell.ApplySettings(ToKey(Theme), StartWithWindows, ShowTrayIcon);
+        _shell.ApplySettings(
+            SelectedTheme?.Key ?? "System",
+            StartWithWindows,
+            ShowTrayIcon,
+            SelectedLanguage?.Key ?? LanguageSetting.System);
     }
-
-    private static string ToDisplayName(string key) => key switch
-    {
-        "Light" => "浅色",
-        "Dark" => "深色",
-        _ => "跟随系统",
-    };
-
-    private static string ToKey(string displayName) => displayName switch
-    {
-        "浅色" => "Light",
-        "深色" => "Dark",
-        _ => "System",
-    };
 }
 
 /// <summary>One row in the widget list.</summary>

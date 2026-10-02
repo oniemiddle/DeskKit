@@ -1,6 +1,6 @@
-using Avalonia.Controls;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.Widgets.Clock;
 
@@ -11,8 +11,11 @@ public sealed class ClockWidgetProvider : IWidgetProvider
 
     public WidgetDescriptor Descriptor { get; } = new(
         Id: WidgetId,
-        DisplayName: "时钟",
-        Description: "显示时间和日期",
+
+        // Resource keys, not text: the shell resolves them against the active
+        // culture. See WidgetText.
+        DisplayName: WidgetText.ClockName,
+        Description: WidgetText.ClockDescription,
         DefaultWidth: 260,
         DefaultHeight: 130,
         MinWidth: 140,

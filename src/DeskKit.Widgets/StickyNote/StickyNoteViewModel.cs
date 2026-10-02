@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DeskKit.Core;
 using DeskKit.Core.Models;
+using DeskKit.Widgets.Localization;
 
 namespace DeskKit.Widgets.StickyNote;
 
@@ -17,14 +19,14 @@ public sealed partial class StickyNoteViewModel : WidgetViewModel
     private const string KeyFontSize = "fontSize";
 
     /// <summary>Paper tints, all light enough for dark text.</summary>
-    private static readonly (string Name, Color Colour)[] Papers =
+    private static readonly (string NameKey, Color Colour)[] Papers =
     [
-        ("黄色", Color.Parse("#FFF3C4")),
-        ("粉色", Color.Parse("#FFD6E4")),
-        ("绿色", Color.Parse("#D7F2D0")),
-        ("蓝色", Color.Parse("#D6E7FF")),
-        ("紫色", Color.Parse("#E4DBFF")),
-        ("灰色", Color.Parse("#E8E8E8")),
+        (WidgetText.PaperYellow, Color.Parse("#FFF3C4")),
+        (WidgetText.PaperPink, Color.Parse("#FFD6E4")),
+        (WidgetText.PaperGreen, Color.Parse("#D7F2D0")),
+        (WidgetText.PaperBlue, Color.Parse("#D6E7FF")),
+        (WidgetText.PaperPurple, Color.Parse("#E4DBFF")),
+        (WidgetText.PaperGrey, Color.Parse("#E8E8E8")),
     ];
 
     private bool _loading = true;
@@ -50,11 +52,23 @@ public sealed partial class StickyNoteViewModel : WidgetViewModel
         NoteFontSize = Math.Clamp(Settings.Get(KeyFontSize, 14d), 10, 32);
 
         _loading = false;
+
+        // The palette is the one piece of this widget's own text that is not in
+        // XAML, so it has to refresh itself.
+        _cultureSubscription = WidgetLanguage.Instance.CultureChanges
+            .SubscribeAction(_ => OnPropertyChanged(nameof(PaperNames)));
     }
+
+    private readonly IDisposable _cultureSubscription;
 
     public IBrush PaperBrush => new SolidColorBrush(Papers[PaperIndex].Colour);
 
-    public static IReadOnlyList<string> PaperNames => [.. Papers.Select(p => p.Name)];
+    /// <summary>
+    /// The palette names in the active language. Re-read on every culture change,
+    /// because the list is shown in the settings panel and would otherwise stay in
+    /// the language the note was created in.
+    /// </summary>
+    public IReadOnlyList<string> PaperNames => [.. Papers.Select(p => WidgetText.Value(p.NameKey))];
 
     public override Control CreateView() => new StickyNoteView { DataContext = this };
 
@@ -76,6 +90,9 @@ public sealed partial class StickyNoteViewModel : WidgetViewModel
         OnPropertyChanged(nameof(PaperBrush));
         Persist(KeyPaper, value);
     }
+
+    /// <summary>Releases the culture subscription so a removed note stops listening.</summary>
+    public override void Dispose() => _cultureSubscription.Dispose();
 
     private void Persist<T>(string key, T value)
     {

@@ -123,10 +123,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             tickService,
             workspace,
             desktopLayer,
-            materials,
-            _material,
             _surfaceMargin,
-            assets,
+            new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets),
             logger);
     }
 

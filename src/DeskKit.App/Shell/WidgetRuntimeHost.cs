@@ -1,7 +1,6 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
 using DeskKit.App.Services;
-using DeskKit.App.Views;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
@@ -30,10 +29,8 @@ internal sealed class WidgetRuntimeHost(
     TickService ticks,
     WorkspaceState workspace,
     IDesktopLayerService desktopLayer,
-    IWindowMaterialService materials,
-    WidgetMaterial material,
     double surfaceMargin,
-    ShellAssets assets,
+    WidgetSurfaceFactory surfaces,
     ILogger logger) : IDisposable
 {
     private readonly List<WidgetRuntime> _widgets = [];
@@ -81,7 +78,7 @@ internal sealed class WidgetRuntimeHost(
             return null;
         }
 
-        var window = CreateWindow(placement, descriptor, viewModel, new PixelPoint(onScreen.X, onScreen.Y));
+        var window = surfaces.Create(placement, descriptor, viewModel, new PixelPoint(onScreen.X, onScreen.Y));
         var runtime = new WidgetRuntime(placement, viewModel, window);
 
         window.SetContextMenu(contextMenu(runtime));
@@ -177,40 +174,5 @@ internal sealed class WidgetRuntimeHost(
             Destroy(widget);
 
         ticks.Dispose();
-    }
-
-    private WidgetWindow CreateWindow(
-        WidgetPlacement placement,
-        WidgetDescriptor descriptor,
-        WidgetViewModel viewModel,
-        PixelPoint position)
-    {
-        var card = WindowSizeForPlacement(placement, descriptor);
-        var minimum = WidgetWindow.WindowSizeForCard(
-            descriptor.MinWidth, descriptor.MinHeight, surfaceMargin);
-
-        return new WidgetWindow(desktopLayer, materials, material)
-        {
-            // The type id rather than the translated name: a window title is not shown
-            // by a chrome-less window, nothing reads it, and keeping it localized was the
-            // only thing that would have made the runtime resolve product text.
-            Title = descriptor.Id,
-            AcceptsKeyboardFocus = !descriptor.PreventActivation,
-            Icon = assets.Icon,
-            CardBackground = ThemeService.CardBrushFor(material),
-            WidgetContent = viewModel.CreateView(),
-            Width = card.Width,
-            Height = card.Height,
-            MinWidth = minimum.Width,
-            MinHeight = minimum.Height,
-            Position = position,
-        };
-    }
-
-    private Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
-    {
-        var cardWidth = placement.Width > 0 ? placement.Width : descriptor.DefaultWidth;
-        var cardHeight = placement.Height > 0 ? placement.Height : descriptor.DefaultHeight;
-        return WidgetWindow.WindowSizeForCard(cardWidth, cardHeight, surfaceMargin);
     }
 }

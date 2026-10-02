@@ -41,6 +41,29 @@ internal sealed class WidgetRuntimeHost(
     public void StartTicking() => ticks.Start();
 
     /// <summary>
+    /// Creates one widget of the given type where a new one belongs: offset from the
+    /// screen's own origin and cascaded past the widgets already placed, so adding
+    /// several in a row does not stack them exactly on top of each other.
+    /// </summary>
+    /// <returns>Null when the widget could not be created, which is not fatal.</returns>
+    public WidgetRuntime? Add(
+        IWidgetProvider provider,
+        IWidgetHost host,
+        IReadOnlyList<ScreenBounds> screens,
+        Func<WidgetRuntime, ContextMenu> contextMenu)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+
+        var placement = WidgetSeedPolicy.CreatePlacement(
+            provider,
+            _widgets.Count,
+            screens,
+            Guid.NewGuid().ToString("N"));
+
+        return Add(placement, host, screens, contextMenu);
+    }
+
+    /// <summary>
     /// Creates one widget: its view model, its window, its event wiring, and its start.
     /// </summary>
     /// <returns>Null when the widget could not be created, which is not fatal.</returns>
@@ -167,6 +190,25 @@ internal sealed class WidgetRuntimeHost(
 
     public WidgetRuntime? Find(WidgetViewModel viewModel) =>
         _widgets.FirstOrDefault(runtime => ReferenceEquals(runtime.ViewModel, viewModel));
+
+    /// <summary>
+    /// Shows or hides every widget's window at once, for the tray's hide-the-widgets
+    /// command. Only the surfaces move: the widgets stay running.
+    /// </summary>
+    /// <remarks>
+    /// Hiding is deliberate rather than closed, so nothing is created or destroyed and a
+    /// widget keeps whatever it was showing. The windows are told by the desktop layer
+    /// rather than by the window itself, because a hidden widget window must stay out of
+    /// the way of the desktop's own show-desktop handling.
+    /// </remarks>
+    public void SetVisible(bool visible)
+    {
+        foreach (var widget in _widgets)
+        {
+            desktopLayer.SetVisible(widget.Window, visible);
+            widget.IsVisible = visible;
+        }
+    }
 
     public void Dispose()
     {

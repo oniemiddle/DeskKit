@@ -1,4 +1,5 @@
-﻿using DeskKit.Core.Abstractions;
+﻿using DeskKit.App.Services;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
 using DeskKit.Widgets.Localization;
 
@@ -19,6 +20,26 @@ internal sealed class WidgetCatalog(WidgetRegistry registry)
     public IReadOnlyList<IWidgetProvider> Providers => registry.Providers;
 
     public IWidgetProvider? Find(string widgetId) => registry.Find(widgetId);
+
+    /// <summary>
+    /// One placed widget as the product shows it: its identity, and the name to display
+    /// for it in the culture in force right now.
+    /// </summary>
+    /// <remarks>
+    /// The name is resolved when this is asked for rather than carried on the placement,
+    /// which only holds the widget's id. The settings window re-reads its list whenever
+    /// the culture changes, so the names follow the language.
+    /// </remarks>
+    public WidgetInfo Describe(WidgetRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+
+        return new WidgetInfo(
+            runtime.Placement.InstanceId,
+            runtime.Placement.WidgetId,
+            Name(runtime.Placement.WidgetId),
+            runtime.ViewModel);
+    }
 
     /// <summary>
     /// The name to show for a widget type right now. A type this build does not have

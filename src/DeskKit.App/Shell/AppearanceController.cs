@@ -1,5 +1,4 @@
 ﻿using DeskKit.App.Services;
-using DeskKit.Platform;
 
 namespace DeskKit.App.Shell;
 
@@ -11,13 +10,8 @@ namespace DeskKit.App.Shell;
 /// reaches the shell as a separate concern because it also has to reletter menus and
 /// lists, and folding the two together is what made the class this came from hard to
 /// reason about.
-/// <para>
-/// The material is resolved once, before any window exists, because it decides the
-/// layout of every window; this only repaints what is already there when the preference
-/// changes.
-/// </para>
 /// </remarks>
-internal sealed class AppearanceController(ThemeService themes, WidgetMaterial material)
+internal sealed class AppearanceController(ThemeService themes)
 {
     /// <summary>Applies the stored theme preference to the application.</summary>
     public void ApplyTheme(string theme) => themes.Apply(theme);
@@ -27,11 +21,17 @@ internal sealed class AppearanceController(ThemeService themes, WidgetMaterial m
     /// visibly wrong thing on screen after a theme change, because the widgets outlive
     /// the settings window that changed it.
     /// </summary>
+    /// <remarks>
+    /// The material is asked of each window rather than carried in from the shell. The
+    /// window was built for the material it has, so this cannot disagree with what the
+    /// window is actually made of - and there is no second copy of the answer to keep
+    /// in step.
+    /// </remarks>
     public void ApplyCardSurfaces(IReadOnlyList<WidgetRuntime> runtimes)
     {
         ArgumentNullException.ThrowIfNull(runtimes);
 
         foreach (var runtime in runtimes)
-            runtime.Window.CardBackground = ThemeService.CardBrushFor(material);
+            runtime.Window.CardBackground = ThemeService.CardBrushFor(runtime.Window.Material);
     }
 }

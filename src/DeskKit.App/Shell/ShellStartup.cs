@@ -65,6 +65,27 @@ internal sealed class ShellStartup(WidgetRegistry registry, ILogger logger)
     }
 
     /// <summary>
+    /// The widgets a first run should put on the desktop, in the order the layout names
+    /// them, cascaded into a place each can be seen.
+    /// </summary>
+    /// <remarks>
+    /// Which widgets those are is a product decision rather than a property of a widget,
+    /// so it is read from <see cref="DefaultLayout"/> and never from a descriptor: a
+    /// widget cannot declare that it must appear the first time the application runs.
+    /// A layout naming a widget this build does not have is skipped rather than fatal.
+    /// </remarks>
+    public IReadOnlyList<WidgetPlacement> FirstRunPlacements(IReadOnlyList<ScreenBounds> screens)
+    {
+        ArgumentNullException.ThrowIfNull(screens);
+
+        return WidgetSeedPolicy.CreateFirstRunPlacements(
+            DefaultLayout.WidgetIds,
+            registry,
+            screens,
+            () => Guid.NewGuid().ToString("N"));
+    }
+
+    /// <summary>
     /// Brings each widget's own settings up to the version its provider declares, and
     /// answers with the placements to store, or null when nothing had to change.
     /// </summary>

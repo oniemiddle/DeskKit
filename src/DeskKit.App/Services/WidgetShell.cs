@@ -24,12 +24,6 @@ namespace DeskKit.App.Services;
 /// </summary>
 public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 {
-    /// <summary>Space left between two widgets that snap next to each other.</summary>
-    private const int SnapGap = WidgetSnapEngine.DefaultGap;
-
-    /// <summary>How close an edge must be, in physical pixels, before it snaps.</summary>
-    private const int SnapThreshold = WidgetSnapEngine.DefaultThreshold;
-
     private readonly WorkspaceState _workspace;
     private readonly PlacementController _placement;
     private readonly WidgetRuntimeHost _runtimes;
@@ -39,9 +33,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
     private readonly AppearanceController _appearance;
-    private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
-    private readonly INoticePresenter _notices;
     private readonly IWidgetMessageBus _messages;
 
     /// <summary>The material every widget window carries, already resolved.</summary>
@@ -50,8 +42,10 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     /// <summary>Transparent inset each window keeps around its card for that material.</summary>
     private readonly double _surfaceMargin;
 
-    private TrayIcon? _trayIcon;
-    private SettingsWindow? _settingsWindow;
+    private readonly TrayIconController _tray;
+    private readonly SettingsWindowController _settings;
+    private readonly WidgetContextMenuFactory _contextMenus = new();
+    private readonly StorageNoticePresenter _storageNotices;
 
     public WidgetShell(
         IStateStore stateStore,
@@ -103,9 +97,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         _desktopLayer = desktopLayer;
         _autoStart = autoStart;
         _appearance = new AppearanceController(themeService, _material);
-        _materials = materials;
         Language = languageService;
-        _notices = notices;
         _messages = messages;
         _logger = logger;
 
@@ -126,6 +118,10 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             _surfaceMargin,
             new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets),
             logger);
+
+        _settings = new SettingsWindowController(this, assets);
+        _tray = new TrayIconController(this, _catalog, assets, () => _settings.Open(null));
+        _storageNotices = new StorageNoticePresenter(notices, _tray);
     }
 
     /// <summary>The language preference and the managers it drives.</summary>
@@ -162,7 +158,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
     public void ShowSettings(WidgetViewModel widget)
     {
-        OpenSettings(FindRuntime(widget));
+        _settings.Open(widget);
     }
 
     public void RemoveWidget(WidgetViewModel widget)
@@ -247,7 +243,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             CreateWidget(placement);
 
         _runtimes.StartTicking();
-        CreateTrayIcon();
+        _tray.Show();
 
         ShowStorageNotice();
     }
@@ -344,41 +340,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     /// </remarks>
     private void ShowStorageNotice()
     {
-        var report = _workspace.LoadReport;
-        if (!report.HasProblems)
-            return;
-
-        var lines = new List<string>();
-
-        switch (report.Outcome)
-        {
-            case StoreOutcome.Unavailable:
-                lines.Add(AppLanguage.Instance.Notice_Unavailable.CurrentText());
-                break;
-
-            case StoreOutcome.NewerSchema:
-                lines.Add(AppLanguage.Instance.Notice_NewerSchema.CurrentText());
-                break;
-
-            default:
-                // Import or read problems, which the outcome alone does not describe:
-                // the session runs as usual, minus whatever could not be read. The two
-                // outcomes above already say that nothing was read at all, so line by
-                // line detail would only bury them.
-                if (report.Problems.Count > 0)
-                    lines.Add(AppLanguage.Instance.Notice_DataProblem.CurrentText());
-                break;
-        }
-
-        var title = AppLanguage.Instance.Notice_Title.CurrentText();
-
-        _notices.Show(new Notice(
-            title,
-            string.Join(Environment.NewLine + Environment.NewLine, lines)));
-
-        // Repeated on the tray icon, which neither expires when the notice does nor can
-        // be covered by anything.
-        _trayIcon?.ToolTipText = $"DeskKit —{title}";
+        _storageNotices.Show(_workspace.LoadReport);
     }
 
     /// <summary>
@@ -407,21 +369,9 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 
         _runtimes.Dispose();
 
-        if (_trayIcon is not null)
-        {
-            _trayIcon.IsVisible = false;
+        _tray.Dispose();
 
-            if (Application.Current is { } application
-                && TrayIcon.GetIcons(application) is { } icons)
-            {
-                icons.Remove(_trayIcon);
-            }
-
-            _trayIcon.Dispose();
-            _trayIcon = null;
-        }
-
-        _settingsWindow?.Close();
+        _settings.Close();
     }
 
     // ---- Widget management ----------------------------------------------
@@ -459,29 +409,6 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     /// <summary>
     /// Copies the window's live position and size back into the stored placement.
     /// </summary>
-    private void CapturePlacement(WidgetRuntime runtime) =>
-        _placement.Capture(runtime, _surfaceMargin);
-
-    private Size WindowSizeForPlacement(WidgetPlacement placement, WidgetDescriptor descriptor)
-    {
-        var cardWidth = placement.Width > 0 ? placement.Width : descriptor.DefaultWidth;
-        var cardHeight = placement.Height > 0 ? placement.Height : descriptor.DefaultHeight;
-        return WidgetWindow.WindowSizeForCard(cardWidth, cardHeight, _surfaceMargin);
-    }
-
-    // ---- Magnetic snapping ----------------------------------------------
-
-    private PixelPoint SnapPosition(WidgetRuntime moving, PixelPoint proposed) =>
-        _placement.Snap(_runtimes.Runtimes, moving, proposed, _surfaceMargin);
-
-    private void ClearSnapHighlights() => PlacementController.ClearHighlights(_runtimes.Runtimes);
-
-    private void OnDragCompleted(WidgetRuntime runtime)
-    {
-        ClearSnapHighlights();
-        _placement.Capture(runtime, _surfaceMargin);
-    }
-
     private WidgetPlacement CreatePlacement(IWidgetProvider provider) =>
         WidgetSeedPolicy.CreatePlacement(
             provider,
@@ -489,60 +416,11 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             Screens,
             Guid.NewGuid().ToString("N"));
 
-    private ContextMenu BuildContextMenu(WidgetRuntime runtime)
-    {
-        var menu = new ContextMenu();
+    private ContextMenu BuildContextMenu(WidgetRuntime runtime) =>
+        _contextMenus.Create(
+            openSettings: () => _settings.Open(runtime.ViewModel),
+            remove: () => Remove(runtime));
 
-        // Subscribing sets the current text and keeps it right afterwards, because
-        // the observable emits the value it already has on subscribe.
-        var settings = new MenuItem();
-        AppLanguage.Instance.Menu_Settings.SubscribeAction(text => settings.Header = text);
-        settings.Click += (_, _) => OpenSettings(runtime);
-        menu.Items.Add(settings);
-
-        var remove = new MenuItem();
-        AppLanguage.Instance.Menu_Remove.SubscribeAction(text => remove.Header = text);
-        remove.Click += (_, _) => Remove(runtime);
-        menu.Items.Add(remove);
-
-        return menu;
-    }
-
-    // ---- Settings and tray ----------------------------------------------
-
-    private void OpenSettings(WidgetRuntime? runtime)
-    {
-        _settingsWindow ??= CreateSettingsWindow();
-
-        if (!_settingsWindow.IsVisible)
-            _settingsWindow.Show();
-
-        _settingsWindow.Activate();
-
-        if (runtime is not null)
-            _settingsWindow.SelectWidget(runtime.ViewModel);
-    }
-
-    private SettingsWindow CreateSettingsWindow()
-    {
-        var window = new SettingsWindow
-        {
-            Icon = AppIcon,
-            DataContext = new SettingsViewModel(this),
-        };
-
-        window.Closed += (_, _) => _settingsWindow = null;
-        return window;
-    }
-
-    /// <summary>
-    /// Stores a whole set of preferences and makes the running application match.
-    /// </summary>
-    /// <remarks>
-    /// A record rather than four parameters, because the four were exactly the fields
-    /// of <see cref="AppSettings"/>: passing them one by one meant two adjacent
-    /// strings that a caller could swap without the compiler noticing.
-    /// </remarks>
     public void ApplySettings(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -566,8 +444,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             }
         }
 
-        if (_trayIcon is not null)
-            _trayIcon.IsVisible = settings.ShowTrayIcon;
+        _tray.SetVisible(settings.ShowTrayIcon);
 
         _appearance.ApplyCardSurfaces(_runtimes.Runtimes);
 
@@ -585,89 +462,6 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
         }
 
         _workspace.RaiseChanged();
-    }
-
-    private void CreateTrayIcon()
-    {
-        var addMenu = new NativeMenu();
-        foreach (var provider in _registry.Providers)
-        {
-            var item = new NativeMenuItem();
-            var captured = provider;
-            item.Click += (_, _) => AddWidget(captured);
-            addMenu.Add(item);
-
-            // Live, so a language change renames the entries in place instead of
-            // leaving the tray in the language it happened to start in.
-            if (_catalog.ObservableName(provider.Descriptor.Id) is { } name)
-                name.SubscribeAction(text => item.Header = text);
-            else
-                item.Header = provider.Descriptor.DisplayName;
-        }
-
-        var menu = new NativeMenu();
-
-        var add = new NativeMenuItem { Menu = addMenu };
-        AppLanguage.Instance.Tray_AddWidget.SubscribeAction(text => add.Header = text);
-        menu.Add(add);
-
-        menu.Add(new NativeMenuItemSeparator());
-
-        // The header depends on the widget state as well as the language, so both
-        // the click and the culture change go through the same refresh.
-        var toggle = new NativeMenuItem();
-        void RefreshToggle() => toggle.Header = State.Settings.WidgetsVisible
-            ? AppLanguage.Instance.Tray_HideAll.CurrentText()
-            : AppLanguage.Instance.Tray_ShowAll.CurrentText();
-
-        toggle.Click += (_, _) =>
-        {
-            SetWidgetsVisible(!State.Settings.WidgetsVisible);
-            RefreshToggle();
-        };
-
-        menu.Add(toggle);
-
-        var settings = new NativeMenuItem();
-        AppLanguage.Instance.Tray_Settings.SubscribeAction(text => settings.Header = text);
-        settings.Click += (_, _) => OpenSettings(null);
-        menu.Add(settings);
-
-        menu.Add(new NativeMenuItemSeparator());
-
-        var exit = new NativeMenuItem();
-        AppLanguage.Instance.Tray_Exit.SubscribeAction(text => exit.Header = text);
-        exit.Click += (_, _) => (Application.Current?.ApplicationLifetime
-            as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
-        menu.Add(exit);
-
-        // One combined refresh: the toggle needs both the language and the state,
-        // and every other header is already subscribed.
-        void OnCultureChanged(object? sender, EventArgs e) => RefreshToggle();
-
-        RefreshToggle();
-
-        // The shell owns both the service and this handler, so they end together.
-        Language.CultureChanged += OnCultureChanged;
-
-        _trayIcon = new TrayIcon
-        {
-            Icon = AppIcon,
-            ToolTipText = "DeskKit",
-            Menu = menu,
-            IsVisible = State.Settings.ShowTrayIcon,
-        };
-
-        _trayIcon.Clicked += (_, _) => SetWidgetsVisible(!State.Settings.WidgetsVisible);
-
-        // Avalonia 12 hosts tray icons in a collection attached to the
-        // Application rather than a single Application.TrayIcon property.
-        if (Application.Current is { } application)
-        {
-            var icons = TrayIcon.GetIcons(application) ?? new TrayIcons();
-            icons.Add(_trayIcon);
-            TrayIcon.SetIcons(application, icons);
-        }
     }
 
     private WindowIcon AppIcon => _assets.Icon;

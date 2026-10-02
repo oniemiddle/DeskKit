@@ -201,17 +201,48 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         // titled in the right language.
         _languageService.Apply(State.Settings.Language);
 
-        var normalized = PlacementNormalizer.EnsureAllOnScreen(State.Widgets, Screens);
-        State = State with { Widgets = [.. normalized] };
+        ReconcileAutoStart();
 
         if (!_configStore.FileExistedOnLoad)
             SeedDefaultWidgets();
 
+        // The stored placements are deliberately not normalised into State: a display
+        // layout that cannot show a widget is this session's problem to solve, not a
+        // reason to overwrite the position the user chose. Doing it here is what used
+        // to make a layout degrade a little every time a laptop was undocked, and on
+        // a roaming profile it made two machines overwrite each other's. CreateWidget
+        // places the window where it can be seen instead.
         foreach (var placement in State.Widgets.Where(p => p.Enabled))
             CreateWidget(placement);
 
         _tickService.Start();
         CreateTrayIcon();
+    }
+
+    /// <summary>
+    /// Brings the stored autostart preference back in line with the machine it is
+    /// being read on.
+    /// <para>
+    /// Autostart is registered per user <em>per machine</em>, but the preference
+    /// travels with the profile. A config that says "starts with Windows" is
+    /// therefore routinely wrong on a second computer, where the settings window
+    /// would show it as on while no registry entry exists. The registry is treated
+    /// as the truth here rather than the file, because the opposite reconciliation
+    /// — writing a run key at startup because a file said so — is a side effect
+    /// nobody asked for on that machine.
+    /// </para>
+    /// </summary>
+    private void ReconcileAutoStart()
+    {
+        if (!_autoStart.IsSupported || State.Settings.StartWithWindows == _autoStart.IsEnabled)
+            return;
+
+        State = State with
+        {
+            Settings = State.Settings with { StartWithWindows = _autoStart.IsEnabled },
+        };
+
+        ScheduleSave();
     }
 
     /// <summary>
@@ -289,6 +320,9 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         var settings = new WidgetSettings(placement.Settings);
         var context = new WidgetContext(placement, settings, this);
 
+        // The stored position, adjusted only if the current displays cannot show it.
+        var onScreen = PlacementNormalizer.EnsureOnScreen(placement, Screens);
+
         WidgetViewModel viewModel;
         try
         {
@@ -311,7 +345,12 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             Height = WindowSizeForPlacement(placement, descriptor).Height,
             MinWidth = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Width,
             MinHeight = WidgetWindow.WindowSizeForCard(descriptor.MinWidth, descriptor.MinHeight, _surfaceMargin).Height,
-            Position = new PixelPoint(placement.X, placement.Y),
+
+            // Where the window is actually put, which is not necessarily where it
+            // was stored: a monitor may have gone away since. The placement itself
+            // is left alone, so the widget returns to where the user left it once
+            // that monitor is back.
+            Position = new PixelPoint(onScreen.X, onScreen.Y),
         };
 
         var runtime = new WidgetRuntime(placement, viewModel, window);
@@ -341,7 +380,11 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         // widget that is stored somewhere other than where it actually sits
         // drifts a little further on every restart. Storing what the window
         // really is removes the whole class of problem.
-        var requested = new PixelPoint(placement.X, placement.Y);
+        //
+        // Compared against what was asked for, not against the stored placement:
+        // this records where the window manager put the window, and must not turn
+        // a display-driven adjustment into a stored one.
+        var requested = new PixelPoint(onScreen.X, onScreen.Y);
         if (window.Position != requested)
         {
             _logger.LogInformation(

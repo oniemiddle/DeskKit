@@ -420,10 +420,16 @@ scripts/
 
 ## Data
 
-Everything is local. Configuration lives in
-`%APPDATA%\DeskKit\config.json`, logs in `%APPDATA%\DeskKit\logs\`.
+Nothing is sent to a server. Configuration lives in
+`%APPDATA%\DeskKit\config.json`, logs in `%LOCALAPPDATA%\DeskKit\logs\`.
 
-Two rules protect the stored layout, both of which exist because breaking them
+The configuration stays in the **roaming** folder on purpose: it holds the user's
+own content — the text of a note, the shortcuts in a launcher — and roaming
+profiles are the ones that get backed up and synchronised. Logs go to the local
+folder, where machine-local output belongs, so a roaming profile does not carry
+them to a server.
+
+Three rules protect the stored layout, all of which exist because breaking them
 destroys it silently:
 
 - **A file that cannot be read is never written over.** If the config exists but
@@ -435,10 +441,23 @@ destroys it silently:
   *parsed* is a different case and is handled differently: it is moved aside to
   `config.corrupt-<timestamp>.json` and a fresh one is written, because there was
   nothing readable in it to protect.
+- **An adjustment made for the current displays is not saved as if the user had
+  made it.** A widget whose saved position is on a monitor that is not connected is
+  shown on the nearest one, but the saved position is left alone, so plugging that
+  monitor back in puts the widget where it was. Folding the adjustment into the
+  saved layout is what used to make a layout drift a little on every undock — and
+  on a roaming profile it made two machines overwrite each other's positions.
+  Positions are only written when the user actually drags or resizes a widget.
 - **One instance per logon session.** A named mutex keeps a second launch from
   starting a rival set of widgets and overwriting the first one's config; the
   second instance logs why and exits. The mutex is a kernel object, so it is
   released even on a crash and there is no stale lock to clean up.
+
+One thing is reconciled rather than trusted: the **start-with-Windows** preference
+is registered per user *per machine*, but it travels with the profile, so a config
+that says "on" is routinely wrong on a second computer. The registry is treated as
+the truth and the stored value is corrected at startup — the alternative, writing a
+run key because a file said so, is a side effect nobody asked for on that machine.
 
 The remaining gap, stated rather than hidden: two **sessions** of the same user
 (console plus RDP, or fast user switching) still share one config file and can

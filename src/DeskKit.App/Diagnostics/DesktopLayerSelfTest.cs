@@ -297,6 +297,136 @@ internal sealed class DesktopLayerSelfTest
 
         CheckWidgetForegroundThemes();
         CheckLocalization();
+        await CheckPlacementAuthorshipAsync();
+    }
+
+    /// <summary>
+    /// Verifies that a widget which cannot be shown where it was saved is moved for
+    /// this session only.
+    /// <para>
+    /// Normalising a placement and letting that reach the file is what used to make
+    /// a layout degrade every time a laptop was undocked: the position the user
+    /// chose was overwritten by a position their display layout had forced, on a
+    /// plain start-and-exit with no user action at all. The window still has to be
+    /// reachable — the point is only that the adjustment is not mistaken for intent.
+    /// </para>
+    /// </summary>
+    private async Task CheckPlacementAuthorshipAsync()
+    {
+        Section("15. placement authorship");
+
+        var directory = Path.Combine(
+            Path.GetTempPath(), "deskkit-placement-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        // Far outside any monitor, so normalisation has to do something.
+        const int offScreenX = 40000;
+        const int offScreenY = 40000;
+
+        var configPath = Path.Combine(directory, AppPaths.ConfigFileName);
+        File.WriteAllText(
+            configPath,
+            $$"""
+            {
+              "version": 1,
+              "settings": { "theme": "System", "showTrayIcon": true, "widgetsVisible": true, "language": "System" },
+              "widgets": [
+                {
+                  "instanceId": "offscreen",
+                  "widgetId": "clock",
+                  "enabled": true,
+                  "x": {{offScreenX}},
+                  "y": {{offScreenY}},
+                  "width": 260,
+                  "height": 130,
+                  "settings": {}
+                }
+              ]
+            }
+            """);
+
+        var registry = new WidgetRegistry();
+        foreach (var provider in BuiltInWidgets.CreateProviders(new NullShellIconLoader()))
+            registry.Register(provider);
+
+        using var tickService = new TickService();
+
+        var shell = new WidgetShell(
+            new ConfigStore(directory),
+            registry,
+            new WindowsDesktopLayerService(),
+            new NullAutoStartService(),
+            tickService,
+            new ThemeService(),
+            NullLogger<WidgetShell>.Instance);
+
+        try
+        {
+            shell.Start();
+            await Delay(1500);
+
+            var runtime = shell.Runtimes.FirstOrDefault();
+            if (runtime is null)
+            {
+                Fail("the off-screen widget was still created", "no runtime");
+                return;
+            }
+
+            var window = runtime.Window;
+            Note($"stored          : {runtime.Placement.X}, {runtime.Placement.Y}");
+            Note($"window placed at: {window.Position}");
+            Note($"screens         : {string.Join(" | ", shell.Screens.Select(s => s.ToString()))}");
+
+            var measured = DesktopDiagnostics.TryGetWindowRect(window.Handle, out var rect);
+            foreach (var screen in shell.Screens)
+            {
+                Note($"  screen {screen}: visibleCorner(rect)="
+                     + screen.HasVisibleCorner(
+                         rect.X, rect.Y,
+                         PlacementNormalizer.RequiredVisibleWidth,
+                         PlacementNormalizer.RequiredVisibleHeight));
+            }
+
+            // Half one: it is still usable, which is what normalising is for.
+            var onScreen = measured && shell.Screens.Any(s => s.HasVisibleCorner(
+                rect.X, rect.Y,
+                PlacementNormalizer.RequiredVisibleWidth,
+                PlacementNormalizer.RequiredVisibleHeight));
+
+            Check("a widget saved off every monitor is brought back into view",
+                onScreen,
+                $"measured={measured} rect={rect} screens={shell.Screens.Count}");
+
+            Check("the window is placed somewhere other than where it was stored",
+                window.Position.X != offScreenX || window.Position.Y != offScreenY,
+                $"window={window.Position}");
+        }
+        finally
+        {
+            // Dispose is what persists, and it does so unconditionally — which is
+            // exactly how the adjustment used to reach the file.
+            shell.Dispose();
+            await Delay(300);
+        }
+
+        // Half two: the file still holds what the user had, so the monitor coming
+        // back restores the layout instead of finding it already overwritten.
+        var saved = new ConfigStore(directory).Load();
+        var placement = saved.Widgets.FirstOrDefault();
+
+        Check("the stored position survives the session untouched",
+            placement is not null && placement.X == offScreenX && placement.Y == offScreenY,
+            placement is null
+                ? "no widget was saved"
+                : $"stored now {placement.X}, {placement.Y}, expected {offScreenX}, {offScreenY}");
+
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
     }
 
     /// <summary>

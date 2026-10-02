@@ -66,18 +66,18 @@ public sealed class PlacementNormalizerTests
     }
 
     [Fact]
-    public void EnsureAllOnScreen_LeavesVisibleWidgetsUntouched()
+    public void EnsureOnScreen_RecoversAWidgetWhoseMonitorCameBack()
     {
-        var placements = new List<WidgetPlacement>
-        {
-            new() { InstanceId = "a", X = 100, Y = 100 },
-            new() { InstanceId = "b", X = 2000, Y = 100 },
-        };
+        // The same placement that was nudged onto the primary screen is left alone
+        // once the monitor it belonged to is back, which is what makes keeping the
+        // saved position worth doing.
+        var placement = new WidgetPlacement { X = 2000, Y = 100 };
 
-        var result = PlacementNormalizer.EnsureAllOnScreen(placements, [Primary, Secondary]);
+        var withoutSecondary = PlacementNormalizer.EnsureOnScreen(placement, [Primary]);
+        var withSecondary = PlacementNormalizer.EnsureOnScreen(placement, [Primary, Secondary]);
 
-        Assert.Equal(100, result[0].X);
-        Assert.Equal(2000, result[1].X);
+        Assert.NotEqual(placement.X, withoutSecondary.X);
+        Assert.Equal(2000, withSecondary.X);
     }
 
     [Theory]

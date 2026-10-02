@@ -9,6 +9,13 @@ namespace DeskKit.Core.Services;
 /// unplugged, or the resolution shrank — is nudged back to the nearest screen
 /// instead of being left stranded where it cannot be clicked.
 /// </para>
+/// <para>
+/// This adjusts where a widget is <em>put</em>, not where it is stored. The caller
+/// keeps the saved placement, so a monitor that comes back finds the widget where
+/// it was left rather than where an unrelated display layout pushed it. Folding the
+/// result back into the saved layout is what used to make a position degrade a
+/// little on every undock.
+/// </para>
 /// </summary>
 public static class PlacementNormalizer
 {
@@ -36,21 +43,6 @@ public static class PlacementNormalizer
         var y = Math.Clamp(placement.Y, target.Y, Math.Max(target.Y, target.Bottom - RequiredVisibleHeight));
 
         return placement with { X = x, Y = y };
-    }
-
-    public static IReadOnlyList<WidgetPlacement> EnsureAllOnScreen(
-        IReadOnlyList<WidgetPlacement> placements, IReadOnlyList<ScreenBounds> screens)
-    {
-        ArgumentNullException.ThrowIfNull(placements);
-
-        if (screens.Count == 0)
-            return placements;
-
-        var result = new List<WidgetPlacement>(placements.Count);
-        foreach (var placement in placements)
-            result.Add(EnsureOnScreen(placement, screens));
-
-        return result;
     }
 
     /// <summary>

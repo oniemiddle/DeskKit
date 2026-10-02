@@ -46,9 +46,9 @@ dotnet test DeskKit.slnx
 ```
 
 The unit tests cover the parts that are pure logic: configuration round-trips,
-corrupt-file recovery, placement clamping, widget settings, the language
-preference, and every branch of the desktop-layer and window-material decision
-rules.
+corrupt-file recovery, the read-failure guard, placement clamping, widget
+settings, the language preference, and every branch of the desktop-layer and
+window-material decision rules.
 
 ### Verifying the desktop behaviour
 
@@ -422,6 +422,30 @@ scripts/
 
 Everything is local. Configuration lives in
 `%APPDATA%\DeskKit\config.json`, logs in `%APPDATA%\DeskKit\logs\`.
+
+Two rules protect the stored layout, both of which exist because breaking them
+destroys it silently:
+
+- **A file that cannot be read is never written over.** If the config exists but
+  cannot be read — an antivirus scan or a backup tool holding it, say — DeskKit
+  retries a few times, and if it still cannot, it starts with nothing for that
+  session and **refuses to save**, so the real file survives untouched. The
+  warning in the log explains it. Losing one session's changes is recoverable;
+  overwriting a layout that was never read is not. A file that cannot be
+  *parsed* is a different case and is handled differently: it is moved aside to
+  `config.corrupt-<timestamp>.json` and a fresh one is written, because there was
+  nothing readable in it to protect.
+- **One instance per logon session.** A named mutex keeps a second launch from
+  starting a rival set of widgets and overwriting the first one's config; the
+  second instance logs why and exits. The mutex is a kernel object, so it is
+  released even on a crash and there is no stale lock to clean up.
+
+The remaining gap, stated rather than hidden: two **sessions** of the same user
+(console plus RDP, or fast user switching) still share one config file and can
+still overwrite each other. The mutex is session-scoped on purpose — making it
+machine-wide would leave a session the user is actually sitting in with no widgets
+at all — and a file lock cannot close the gap either, since holding a handle on
+`config.json` would break the temporary-file-and-swap write.
 
 The config file is written atomically (temporary file, then swap), so an
 interrupted write cannot leave a half-written layout behind. A file that cannot

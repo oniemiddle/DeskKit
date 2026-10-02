@@ -181,6 +181,20 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                 "The configuration file could not be parsed and was moved to {Backup}", backup);
         }
 
+        if (_configStore.LastLoadOutcome == ConfigLoadOutcome.Unreadable)
+        {
+            // The one message that explains this session. It is written here rather
+            // than when a save is refused, because an unreadable file means no
+            // widgets are restored, so the session may well end without ever
+            // attempting to save — and the user would be left with an empty desktop
+            // and no explanation anywhere.
+            _logger.LogWarning(
+                "The configuration file {File} exists but could not be read, so DeskKit started "
+                + "with nothing and will not overwrite it. Changes made in this session will not "
+                + "be saved. Close whatever is holding the file, then restart DeskKit.",
+                _configStore.FilePath);
+        }
+
         _themeService.Apply(State.Settings.Theme);
 
         // Before any widget is created, so the first window it builds is already
@@ -770,7 +784,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         try
         {
-            _configStore.Save(State);
+            if (_configStore.Save(State) == ConfigSaveOutcome.RefusedUnreadable)
+            {
+                // Silently skipped on purpose: Start already warned, in full, that
+                // this session cannot save. Saying it again on every debounced save
+                // would only fill the log.
+                return;
+            }
         }
         catch (Exception ex)
         {

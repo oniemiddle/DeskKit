@@ -169,4 +169,154 @@ public sealed class ConfigStoreTests : IDisposable
         Assert.Equal(AppState.CurrentVersion, migrated.Version);
         Assert.Single(migrated.Widgets);
     }
+
+    // ---- Telling the load outcomes apart ---------------------------------
+
+    [Fact]
+    public void Load_ReportsAFreshStartAsFirstRunRatherThanAFailure()
+    {
+        var store = CreateStore();
+
+        store.Load();
+
+        Assert.Equal(ConfigLoadOutcome.FirstRun, store.LastLoadOutcome);
+    }
+
+    [Fact]
+    public void Load_ReportsAReadableFileAsLoaded()
+    {
+        var store = CreateStore();
+        store.Save(new AppState());
+
+        var second = CreateStore();
+        second.Load();
+
+        Assert.Equal(ConfigLoadOutcome.Loaded, second.LastLoadOutcome);
+    }
+
+    [Fact]
+    public void Load_ReportsAnUnparsableFileAsCorruptRatherThanUnreadable()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath, "{ this is not json");
+
+        store.Load();
+
+        // Distinct from Unreadable on purpose: a corrupt file has been moved
+        // aside, so writing a replacement is safe. An unread file has not.
+        Assert.Equal(ConfigLoadOutcome.Corrupt, store.LastLoadOutcome);
+    }
+
+    [Fact]
+    public void Load_ReportsALockedFileAsUnreadable()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath, "{\"version\":1}");
+
+        using var _ = new FileStream(
+            store.FilePath, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        store.Load();
+
+        Assert.Equal(ConfigLoadOutcome.Unreadable, store.LastLoadOutcome);
+    }
+
+    // ---- The data-loss guard ---------------------------------------------
+
+    [Fact]
+    public void Save_AfterAnUnreadableLoad_LeavesTheFileByteIdentical()
+    {
+        var store = CreateStore();
+        var original = """
+            {"version":1,"settings":{"theme":"Dark","startWithWindows":false,"showTrayIcon":true,"widgetsVisible":true,"language":"zh-Hans"},"widgets":[]}
+            """;
+        File.WriteAllText(store.FilePath, original);
+
+        var before = File.ReadAllBytes(store.FilePath);
+
+        using (var _ = new FileStream(store.FilePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            store.Load();
+        }
+
+        Assert.Equal(ConfigLoadOutcome.Unreadable, store.LastLoadOutcome);
+
+        // The shell would now persist the defaults it had to start from. That must
+        // not reach the file: this is the layout that was never read.
+        var outcome = store.Save(new AppState { Version = 1 });
+
+        Assert.Equal(ConfigSaveOutcome.RefusedUnreadable, outcome);
+        Assert.Equal(before, File.ReadAllBytes(store.FilePath));
+    }
+
+    [Fact]
+    public void Save_AfterAnUnreadableLoad_WritesNothingAtAll()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath, "{\"version\":1}");
+
+        using (var _ = new FileStream(store.FilePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            store.Load();
+        }
+
+        store.Save(new AppState());
+
+        // Not even the temporary file, which would otherwise be left behind for the
+        // next start to trip over.
+        Assert.False(File.Exists(store.FilePath + ".tmp"));
+    }
+
+    [Fact]
+    public void Save_AfterAnUnreadableLoad_WritesWhenExplicitlyAskedTo()
+    {
+        var store = CreateStore();
+        File.WriteAllText(store.FilePath, "{\"version\":1}");
+
+        using (var _ = new FileStream(store.FilePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            store.Load();
+        }
+
+        // A "reset everything" action has to be able to discard what it could not
+        // read, but it has to say so.
+        var outcome = store.Save(new AppState(), overwriteUnreadable: true);
+
+        Assert.Equal(ConfigSaveOutcome.Saved, outcome);
+    }
+
+    [Fact]
+    public void Save_AfterTheLockIsReleased_KeepsTheSettingsThatWereLost()
+    {
+        var store = CreateStore();
+        File.WriteAllText(
+            store.FilePath,
+            """
+            {"version":1,"settings":{"theme":"Dark","startWithWindows":false,"showTrayIcon":true,"widgetsVisible":true,"language":"zh-Hans"},"widgets":[]}
+            """);
+
+        using (var _ = new FileStream(store.FilePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            store.Load();
+        }
+
+        // Reading again once the file is free is the way out of a read-only
+        // session, and it is what makes the guard temporary rather than permanent.
+        var reloaded = store.Load();
+
+        Assert.Equal(ConfigLoadOutcome.Loaded, store.LastLoadOutcome);
+        Assert.Equal("Dark", reloaded.Settings.Theme);
+        Assert.Equal(ConfigSaveOutcome.Saved, store.Save(reloaded));
+    }
+
+    [Fact]
+    public void Save_BeforeAnyLoad_Writes()
+    {
+        var store = CreateStore();
+
+        // The guard arms on an unreadable load. A store that has never loaded has
+        // seen nothing to protect, and refusing here would break every caller that
+        // only writes.
+        Assert.Equal(ConfigSaveOutcome.Saved, store.Save(new AppState()));
+    }
 }

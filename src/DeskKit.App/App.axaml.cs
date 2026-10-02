@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using DeskKit.App.Diagnostics;
 using DeskKit.App.Services;
 using DeskKit.Core;
@@ -19,6 +20,9 @@ public partial class App : Application
 {
     private ServiceProvider? _services;
     private WidgetShell? _shell;
+
+    /// <summary>Held for the lifetime of the process, so one instance owns the config file.</summary>
+    private SingleInstanceGuard? _instanceGuard;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -46,12 +50,44 @@ public partial class App : Application
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         _services = BuildServices();
+
+        _instanceGuard = SingleInstanceGuard.Acquire();
+        if (_instanceGuard.AlreadyRunning)
+        {
+            // Before a single widget is created: a second instance would build its
+            // own set and then overwrite the first one's configuration.
+            _services.GetRequiredService<ILogger<App>>()
+                .LogInformation("DeskKit is already running; this instance will exit");
+
+            _instanceGuard.Dispose();
+            _instanceGuard = null;
+            _services.Dispose();
+            _services = null;
+
+            // Not shut down directly: this runs inside framework initialisation,
+            // and the lifetime is still starting. The first turn of the dispatcher
+            // is the earliest safe point.
+            Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            return;
+        }
+
+        if (!_instanceGuard.IsProtecting)
+        {
+            // The guard is best-effort: losing it must not stop DeskKit from
+            // starting, but it must not pass unmentioned either, because it is the
+            // difference between one instance owning the config and two racing.
+            _services.GetRequiredService<ILogger<App>>().LogWarning(
+                "Could not create the single-instance guard, so a second DeskKit could "
+                + "overwrite this one's configuration");
+        }
+
         _shell = _services.GetRequiredService<WidgetShell>();
 
         desktop.Exit += (_, _) =>
         {
             _shell?.Dispose();
             _services?.Dispose();
+            _instanceGuard?.Dispose();
         };
 
         try

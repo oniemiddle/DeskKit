@@ -11,7 +11,7 @@ namespace DeskKit.Persistence.Data;
 /// understands from one written by a newer build by comparing the migration ids
 /// compiled into it with the ids recorded in the database's
 /// <c>__EFMigrationsHistory</c> table, rather than by carrying a version number of
-/// its own 鈥?see <c>StateStore</c>.
+/// its own —see <c>StateStore</c>.
 /// </remarks>
 public sealed class DeskKitDbContext : DbContext
 {

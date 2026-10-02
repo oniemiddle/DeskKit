@@ -8,8 +8,8 @@
 /// Autostart is registered per user <em>per machine</em>, but the preference travels
 /// with the profile, so a stored "on" is routinely wrong on a second computer: the
 /// settings window would show it as on while no registry entry exists. The machine is
-/// treated as the truth, because the opposite reconciliation 鈥?writing a run key at
-/// startup because a stored value said so 鈥?is a side effect nobody asked for on that
+/// treated as the truth, because the opposite reconciliation —writing a run key at
+/// startup because a stored value said so —is a side effect nobody asked for on that
 /// machine.
 /// <para>
 /// Pure, so the rule is unit-tested rather than discovered by comparing two machines.

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DeskKit.App.Localization;
 using DeskKit.App.Services;
+using DeskKit.App.Shell;
 using DeskKit.Core;
 using DeskKit.Core.Models;
 using DeskKit.Widgets.Localization;
@@ -16,11 +17,11 @@ namespace DeskKit.App.ViewModels;
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
-    private readonly WidgetShell _shell;
+    private readonly IShellFacade _shell;
     private readonly LanguageService _language;
     private bool _loading;
 
-    public SettingsViewModel(WidgetShell shell)
+    public SettingsViewModel(IShellFacade shell)
     {
         _shell = shell;
         _language = shell.Language;

@@ -14,7 +14,7 @@ internal static class DatabaseBackup
     /// <remarks>
     /// Through SQLite's own backup API rather than <c>File.Copy</c>: in write-ahead
     /// logging the newest commits are still in the <c>-wal</c> file, so copying the
-    /// database file on its own can produce a copy that is missing them 鈥?a backup
+    /// database file on its own can produce a copy that is missing them —a backup
     /// that looks fine until the day it is needed. A same-named file is deleted
     /// first, because a backup left over from an earlier migration must not be merged
     /// with this one.

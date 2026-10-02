@@ -63,7 +63,7 @@ public sealed class StateStore : IStateStore
     public StoreLoadReport LoadReport { get; private set; } = new(StoreOutcome.NotLoaded, [], null);
 
     /// <summary>
-    /// True when the store found state to load 鈥?a database, or the old configuration
+    /// True when the store found state to load —a database, or the old configuration
     /// files it imported. Used to tell a first run apart from a user who deliberately
     /// removed every widget, so that a default widget is seeded exactly once.
     /// </summary>
@@ -117,7 +117,7 @@ public sealed class StateStore : IStateStore
     }
 
     /// <summary>
-    /// Writes the state, unless the session may not write 鈥?see the remarks on the
+    /// Writes the state, unless the session may not write —see the remarks on the
     /// class. A failure to write throws, so the caller logs the reason.
     /// </summary>
     public StoreSaveReport Save(AppState state)

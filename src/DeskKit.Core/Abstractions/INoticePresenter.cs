@@ -19,7 +19,7 @@ public interface INoticePresenter
 }
 
 /// <summary>
-/// Shows nothing. The default, so a headless caller 鈥?a test, the self-test 鈥?never
+/// Shows nothing. The default, so a headless caller —a test, the self-test —never
 /// opens a window it has no way to close.
 /// </summary>
 public sealed class NullNoticePresenter : INoticePresenter

@@ -22,7 +22,7 @@ namespace DeskKit.App.Services;
 /// sync with the database, driving the shared tick, and providing the tray
 /// menu and settings window.
 /// </summary>
-public sealed class WidgetShell : IWidgetHost, IDisposable
+public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
 {
     /// <summary>Space left between two widgets that snap next to each other.</summary>
     private const int SnapGap = WidgetSnapEngine.DefaultGap;
@@ -129,7 +129,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     }
 
     /// <summary>The language preference and the managers it drives.</summary>
-    internal LanguageService Language { get; }
+    public LanguageService Language { get; }
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _runtimes.Runtimes;
 
@@ -198,7 +198,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         {
             // The two messages that explain a session. They are logged here rather than
             // when a save is refused, because this runs before anything can be changed
-            // and a session may end without ever attempting to save 鈥?which would leave
+            // and a session may end without ever attempting to save —which would leave
             // the user with an empty desktop and no explanation anywhere.
             case StoreOutcome.NewerSchema:
                 _logger.LogWarning(
@@ -261,7 +261,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// therefore routinely wrong on a second computer, where the settings window
     /// would show it as on while no registry entry exists. The registry is treated
     /// as the truth here rather than the file, because the opposite reconciliation
-    /// 鈥?writing a run key at startup because a file said so 鈥?is a side effect
+    /// —writing a run key at startup because a file said so —is a side effect
     /// nobody asked for on that machine.
     /// </para>
     /// </summary>
@@ -293,7 +293,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// This does write back into the stored placements, which the placement rules
     /// otherwise never do. The difference is what is being written: a display that
     /// cannot show a widget is this session's problem, while a settings migration is
-    /// a real change to what was stored 鈥?the same kind of correction as reconciling
+    /// a real change to what was stored —the same kind of correction as reconciling
     /// the start-with-Windows flag against the registry.
     /// </remarks>
     private void MigrateWidgetSettings()
@@ -378,7 +378,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         // Repeated on the tray icon, which neither expires when the notice does nor can
         // be covered by anything.
-        _trayIcon?.ToolTipText = $"DeskKit 鈥?{title}";
+        _trayIcon?.ToolTipText = $"DeskKit —{title}";
     }
 
     /// <summary>

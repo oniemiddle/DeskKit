@@ -8,7 +8,7 @@
 /// <remarks>
 /// The database lives in the <b>local</b> application data folder. It used to be a
 /// set of JSON files in the roaming one, on the grounds that they hold the user's
-/// own content 鈥?the text of a note, the shortcuts in a launcher 鈥?and roaming
+/// own content —the text of a note, the shortcuts in a launcher —and roaming
 /// profiles are the ones that get backed up and synchronised. A database cannot
 /// live there: it is one file written in place, so a profile copy or a folder
 /// redirection that reaches it while it is open is a way to corrupt it. The trade is
@@ -18,7 +18,7 @@
 /// Logs stay in the local folder too, which is where machine-local output belongs.
 /// </para>
 /// <para>
-/// The JSON layout is still read, once, from the roaming folder it was written to 鈥?
+/// The JSON layout is still read, once, from the roaming folder it was written to —
 /// see <c>LegacyJsonImport</c>. Nothing in that folder is ever written again.
 /// </para>
 /// </remarks>

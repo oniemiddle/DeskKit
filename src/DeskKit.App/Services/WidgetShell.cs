@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DeskKit.App.Localization;
@@ -38,7 +37,6 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly IAutoStartService _autoStart;
     private readonly TickService _tickService;
     private readonly ThemeService _themeService;
-    private readonly LanguageService _languageService;
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
     private readonly INoticePresenter _notices;
@@ -119,7 +117,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _tickService = tickService;
         _themeService = themeService;
         _materials = materials;
-        _languageService = languageService;
+        Language = languageService;
         _notices = notices;
         _logger = logger;
 
@@ -131,7 +129,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     }
 
     /// <summary>The language preference and the managers it drives.</summary>
-    internal LanguageService Language => _languageService;
+    internal LanguageService Language { get; }
 
     internal IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
 
@@ -141,7 +139,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     public event EventHandler? StateChanged;
 
     public IReadOnlyList<WidgetInfo> Widgets =>
-        _widgets
+    [
+        .. _widgets
             .Select(w => new WidgetInfo(
                 w.Placement.InstanceId,
                 w.Placement.WidgetId,
@@ -153,7 +152,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
                     _registry.Find(w.Placement.WidgetId)?.Descriptor.DisplayName
                     ?? w.Placement.WidgetId),
                 w.ViewModel))
-            .ToList();
+    ];
 
     public IReadOnlyList<IWidgetProvider> AvailableWidgets => _registry.Providers;
 
@@ -229,7 +228,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         // Before any widget is created, so the first window it builds is already
         // titled in the right language.
-        _languageService.Apply(State.Settings.Language);
+        Language.Apply(State.Settings.Language);
 
         ReconcileAutoStart();
 
@@ -382,8 +381,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         // Repeated on the tray icon, which neither expires when the notice does nor can
         // be covered by anything.
-        if (_trayIcon is not null)
-            _trayIcon.ToolTipText = $"DeskKit — {title}";
+        _trayIcon?.ToolTipText = $"DeskKit — {title}";
     }
 
     /// <summary>
@@ -820,8 +818,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         _themeService.Apply(theme);
 
-        if (!string.Equals(_languageService.Setting, language, StringComparison.Ordinal))
-            _languageService.Apply(language);
+        if (!string.Equals(Language.Setting, language, StringComparison.Ordinal))
+            Language.Apply(language);
 
         if (_autoStart.IsSupported && _autoStart.IsEnabled != startWithWindows)
         {
@@ -920,7 +918,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         RefreshToggle();
 
         // The shell owns both the service and this handler, so they end together.
-        _languageService.CultureChanged += OnCultureChanged;
+        Language.CultureChanged += OnCultureChanged;
 
         _trayIcon = new TrayIcon
         {

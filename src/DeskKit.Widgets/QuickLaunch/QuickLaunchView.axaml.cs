@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
 
 namespace DeskKit.Widgets.QuickLaunch;
 

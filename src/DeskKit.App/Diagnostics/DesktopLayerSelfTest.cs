@@ -25,7 +25,6 @@ using DeskKit.Widgets;
 using DeskKit.Widgets.Clock;
 using DeskKit.Widgets.Localization;
 using DeskKit.Widgets.QuickLaunch;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 namespace DeskKit.App.Diagnostics;
 

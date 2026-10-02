@@ -1,5 +1,3 @@
-using DeskKit.Platform;
-
 namespace DeskKit.Platform.Tests;
 
 /// <summary>

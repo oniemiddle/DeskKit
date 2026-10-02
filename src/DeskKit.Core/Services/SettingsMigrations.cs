@@ -1,5 +1,3 @@
-using DeskKit.Core.Models;
-
 namespace DeskKit.Core.Services;
 
 /// <summary>Runs a widget's own settings migrations, without knowing what is in them.</summary>

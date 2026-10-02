@@ -1,5 +1,4 @@
 using DeskKit.Core;
-using Irihi.Lingua;
 
 namespace DeskKit.App.Localization;
 

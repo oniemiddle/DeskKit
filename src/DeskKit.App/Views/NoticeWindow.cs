@@ -1,7 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Layout;
 using Avalonia.Media;
 using DeskKit.App.Services;
 using DeskKit.Platform.Windows;

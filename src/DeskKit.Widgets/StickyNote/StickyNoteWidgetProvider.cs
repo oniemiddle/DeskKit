@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Widgets.Localization;

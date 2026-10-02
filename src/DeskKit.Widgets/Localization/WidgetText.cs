@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using DeskKit.Core;
-using Irihi.Lingua;
 
 namespace DeskKit.Widgets.Localization;
 

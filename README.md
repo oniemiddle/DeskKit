@@ -37,11 +37,14 @@ theme/UI model.
 This is intentionally **composition-time extensibility**, not yet arbitrary DLL
 loading. Loading assemblies from a plugin directory needs an explicit isolation,
 dependency-resolution, versioning, and trust policy; adding that before defining
-those policies would make the app less predictable. When that host is introduced,
-[`McMaster.NETCore.Plugins`](https://github.com/natemcmaster/DotNetCorePlugins)
+those policies would make the app less predictable, so no loader interface was
+added either — an interface with no implementation and no caller is a guess rather
+than a seam. [The architecture guide](docs/architecture.md#extensibility-what-is-stable-and-what-is-deliberately-not-built)
+lists what is stable today and what a loader would have to decide. When that host
+is introduced, [`McMaster.NETCore.Plugins`](https://github.com/natemcmaster/DotNetCorePlugins)
 is a good candidate to replace custom `AssemblyLoadContext` and dependency-probing
-code. It should be isolated behind an `IWidgetProvider` discovery service, leaving
-the widget runtime and registry unchanged.
+code. It should be isolated behind one discovery service in the application's
+composition root, leaving the widget runtime and registry unchanged.
 
 ## Status
 

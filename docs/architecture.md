@@ -156,6 +156,88 @@ composition root, which is also where start-with-Windows is reconciled. It is
 currently 249 lines, and the reason to keep it that way is that the previous
 947-line version was the same facade with all six of those jobs inside it.
 
+## Extensibility: what is stable, and what is deliberately not built
+
+This section is design only. No plugin loader exists in the codebase, and none is
+planned until the policies below are decided.
+
+### The seams that are already stable
+
+A third-party widget is written against the same contract a built-in widget is,
+and every one of these is unchanged by the refactor:
+
+* `IWidgetProvider` — `Descriptor` and `Create(WidgetContext)`.
+* `WidgetDescriptor` — identity, default and minimum size, interaction policy. It
+  carries no seeding flag: which widgets a first run gets is the product's.
+* `WidgetContext` — the creation-time placement, versioned settings, `IWidgetHost`.
+* `WidgetViewModel` — `CreateView`, `CreateSettingsView`, `Start`, `Stop`,
+  `Dispose`, and `ITickAware` for periodic work.
+* `IWidgetHost` — screens, the message bus, `RequestSave`, and the two requests a
+  widget can make of the product (open my settings, remove me).
+* `IWidgetMessageBus` and `IWidgetSettingsMigrations` — communication and settings
+  history stay owned by the widget.
+
+Registration is the composition seam: providers are added through DI and
+`WidgetRegistry` preserves order and rejects duplicate ids. Identity is the id in
+the descriptor, and a collision is a startup failure rather than a silent choice
+between two providers.
+
+### What the runtime deliberately does not know
+
+The runtime never resolves user-visible text. A descriptor carries a resource key
+(not a name), the product resolves keys through `WidgetCatalog`, and the language
+reaches the runtime as one delegate (`ShellEnvironment.ApplyLanguage`). Two
+consequences are worth stating plainly:
+
+* A widget from outside this build can hand over a key the application cannot
+  resolve. The documented behaviour is that the key itself is shown — visible and
+  diagnosable, not blank — which is what makes a stale layout entry or a missing
+  translation obvious.
+* A future loader is a *product* addition: it would discover providers and add
+  them to DI, and it would supply its own name resolution. Nothing in
+  `DeskKit.Runtime` has to change, which is the point of having removed the two
+  dependencies the old shell had on built-in widgets.
+
+### Why no plugin loader is here yet
+
+`IWidgetProviderSource` — an interface whose only implementation would be a loader
+— was considered and **not** added. A contract with no implementation and no
+caller is not a seam; it is a guess, and it would have to be designed against
+policies that do not exist yet. Loading assemblies from a directory requires
+deciding, at minimum:
+
+1. **Identity and collisions.** Which component owns an id, and what happens when
+   two do. `WidgetRegistry` already fails a duplicate, but a plugin host has to
+   decide whether one failing plugin aborts startup or is skipped.
+2. **Versioning.** What a plugin is compiled against, and what happens when the
+   host's contract moves. The widget contract is source-compatible today, not
+   binary-stable.
+3. **Isolation and unload.** Whether plugins load into the default
+   `AssemblyLoadContext` (shared types, no unload) or their own (duplicated
+   contracts, unload possible but never when a window outlives it).
+4. **Trust.** Where plugins may come from, whether they are signed, and what they
+   are allowed to touch — noting that a widget runs in-process and can already
+   draw a window.
+5. **Failure containment.** What happens when a plugin's `Create` or `Start`
+   throws. The runtime already logs and skips a widget that fails to be created,
+   and that behaviour is what a loader would build on.
+
+When those are decided, [`McMaster.NETCore.Plugins`](https://github.com/natemcmaster/DotNetCorePlugins)
+is a better starting point than hand-written `AssemblyLoadContext` probing, and it
+belongs behind one discovery service in the application's composition root.
+
+### The extension points that are kept open on purpose
+
+* Providers are resolved from DI, so a loader can add them the same way
+  `AddBuiltInWidgets` does.
+* `WidgetRegistry` is the only catalogue the runtime sees, so nothing in the
+  runtime needs a compile-time list of widget types.
+* `WidgetInfo`/`WidgetRuntime` are what the product's UI lists, so a plugin's
+  widgets appear in the settings window and the tray menu without UI changes.
+* `ShellEnvironment` is the single injection point for product data, so anything
+  else a future host must hand the runtime is added in one place rather than
+  threaded through the shell.
+
 ## Library decisions
 
 The project already uses Avalonia, CommunityToolkit.Mvvm, EF Core and Microsoft

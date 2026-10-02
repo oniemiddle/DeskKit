@@ -227,12 +227,25 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// </summary>
     private void ReconcileAutoStart()
     {
-        if (!_autoStart.IsSupported || State.Settings.StartWithWindows == _autoStart.IsEnabled)
+        // The rule itself is pure and tested; this only applies its answer and decides
+        // whether anything has to be written.
+        if (!AutoStartReconciliation.NeedsCorrection(
+                State.Settings.StartWithWindows,
+                _autoStart.IsSupported,
+                _autoStart.IsEnabled))
+        {
             return;
+        }
 
         State = State with
         {
-            Settings = State.Settings with { StartWithWindows = _autoStart.IsEnabled },
+            Settings = State.Settings with
+            {
+                StartWithWindows = AutoStartReconciliation.Reconcile(
+                    State.Settings.StartWithWindows,
+                    _autoStart.IsSupported,
+                    _autoStart.IsEnabled),
+            },
         };
 
         ScheduleSave();
@@ -250,50 +263,41 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// </remarks>
     private void MigrateWidgetSettings()
     {
-        var migrated = false;
+        var result = WidgetSettingsMigrator.Apply(State.Widgets, _registry);
 
-        for (var index = 0; index < State.Widgets.Count; index++)
+        // Logged in the order the placements were read, so the log of a session with
+        // several widgets reads the same way it did before the walk moved out of here.
+        foreach (var entry in result.Entries)
         {
-            var placement = State.Widgets[index];
-
-            if (_registry.Find(placement.WidgetId) is IWidgetSettingsMigrations declared)
+            if (entry.Problem is not null)
             {
-                var version = SettingsMigrations.Apply(
-                    new WidgetSettings(placement.Settings),
-                    placement.SettingsVersion,
-                    declared.SettingsVersion,
-                    declared.Migrations,
-                    out var problem);
+                _logger.LogWarning(
+                    "Widget {InstanceId} ({WidgetId}) settings were left alone: {Problem}",
+                    entry.InstanceId,
+                    entry.WidgetId,
+                    entry.Problem);
+                continue;
+            }
 
-                if (problem is not null)
-                {
-                    _logger.LogWarning(
-                        "Widget {InstanceId} ({WidgetId}) settings were left alone: {Problem}",
-                        placement.InstanceId,
-                        placement.WidgetId,
-                        problem);
-                    continue;
-                }
-
-                if (version == placement.SettingsVersion)
-                    continue;
-
-                State.Widgets[index] = placement with { SettingsVersion = version };
-                migrated = true;
-
+            if (entry.Migrated)
+            {
                 _logger.LogInformation(
                     "Widget {InstanceId} ({WidgetId}) settings brought forward to version {Version}",
-                    placement.InstanceId,
-                    placement.WidgetId,
-                    version);
+                    entry.InstanceId,
+                    entry.WidgetId,
+                    entry.Version);
             }
         }
+
+        if (!result.Changed)
+            return;
+
+        State = State with { Widgets = [.. result.Placements] };
 
         // Persisted now rather than whenever something else happens to change: a
         // migration that only reached the disk on exit would run again on every
         // start until then.
-        if (migrated)
-            ScheduleSave();
+        ScheduleSave();
     }
 
     /// <summary>
@@ -351,11 +355,17 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// </summary>
     private void SeedDefaultWidgets()
     {
-        if (_registry.Find(ClockWidgetProvider.WidgetId) is { } provider)
-        {
-            State.Widgets.Add(CreatePlacement(provider));
-            SaveNow();
-        }
+        var placements = WidgetSeedPolicy.CreateFirstRunPlacements(
+            [ClockWidgetProvider.WidgetId],
+            _registry,
+            Screens,
+            () => Guid.NewGuid().ToString("N"));
+
+        if (placements.Count == 0)
+            return;
+
+        State.Widgets.AddRange(placements);
+        SaveNow();
     }
 
     public void Dispose()
@@ -696,26 +706,12 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         return true;
     }
 
-    private WidgetPlacement CreatePlacement(IWidgetProvider provider)
-    {
-        var descriptor = provider.Descriptor;
-        var screen = Screens.FirstOrDefault();
-        var offset = (_widgets.Count % 6) * 32;
-
-        return new WidgetPlacement
-        {
-            InstanceId = Guid.NewGuid().ToString("N"),
-            WidgetId = descriptor.Id,
-            X = screen.X + 80 + offset,
-            Y = screen.Y + 80 + offset,
-            Width = descriptor.DefaultWidth,
-            Height = descriptor.DefaultHeight,
-
-            // A widget created now is written in today's shape, so it never has to
-            // be migrated and must not be stamped with a version it did not come from.
-            SettingsVersion = (provider as IWidgetSettingsMigrations)?.SettingsVersion ?? 1,
-        };
-    }
+    private WidgetPlacement CreatePlacement(IWidgetProvider provider) =>
+        WidgetSeedPolicy.CreatePlacement(
+            provider,
+            _widgets.Count,
+            Screens,
+            Guid.NewGuid().ToString("N"));
 
     private ContextMenu BuildContextMenu(WidgetRuntime runtime)
     {

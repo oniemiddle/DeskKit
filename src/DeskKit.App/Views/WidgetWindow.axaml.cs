@@ -24,11 +24,11 @@ public partial class WidgetWindow : Window
     public const double GlowMargin = 16;
 
     /// <summary>The bar's colour while the widget is being moved.</summary>
-    public static readonly IBrush DragBarActiveBrush =
+    internal static readonly IBrush DragBarActiveBrush =
         new SolidColorBrush(Color.Parse("#FF2563EB"));
 
     /// <summary>The bar's colour on hover, before the widget starts moving.</summary>
-    public static readonly IBrush DragBarIdleBrush =
+    internal static readonly IBrush DragBarIdleBrush =
         new SolidColorBrush(Color.Parse("#59FFFFFF"));
 
     private readonly IDesktopLayerService _desktopLayer;
@@ -129,7 +129,7 @@ public partial class WidgetWindow : Window
     public void SetContextMenu(ContextMenu menu) => CardBorder.ContextMenu = menu;
 
     /// <summary>The native window handle, or <see cref="IntPtr.Zero"/> before the window is shown.</summary>
-    public IntPtr Handle => TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+    internal IntPtr Handle => TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
 
     /// <summary>The control hosted inside the widget card.</summary>
     public object? WidgetContent
@@ -172,10 +172,10 @@ public partial class WidgetWindow : Window
     /// The reserved drag region, in window coordinates. Every widget has one,
     /// including widgets whose content covers the rest of the surface.
     /// </summary>
-    public Rect DragHandleBounds => ToWindowBounds(DragHandle);
+    internal Rect DragHandleBounds => ToWindowBounds(DragHandle);
 
     /// <summary>The widget content area, in window coordinates.</summary>
-    public Rect ContentBounds => ToWindowBounds(ContentHost);
+    internal Rect ContentBounds => ToWindowBounds(ContentHost);
 
     /// <summary>
     /// The visible card, in window coordinates. This is the window inset by the
@@ -184,7 +184,7 @@ public partial class WidgetWindow : Window
     /// than between their windows. With a material the inset is zero, and the card
     /// and the window are the same rectangle.
     /// </summary>
-    public Rect CardBounds => ToWindowBounds(CardBorder);
+    internal Rect CardBounds => ToWindowBounds(CardBorder);
 
     /// <summary>Shadows cast by the card. Cleared when the platform draws them.</summary>
     public BoxShadows CardShadow
@@ -195,84 +195,88 @@ public partial class WidgetWindow : Window
 
     /// <summary>Screen size of a window sized to hold a card of the given size.</summary>
     public static Size WindowSizeForCard(
-        double cardWidth, double cardHeight, double margin = GlowMargin) =>
-        new(cardWidth + (margin * 2), cardHeight + (margin * 2));
+        double cardWidth, double cardHeight, double margin = GlowMargin)
+    {
+        var (width, height) = WindowCardGeometry.WindowSizeForCard(cardWidth, cardHeight, margin);
+        return new Size(width, height);
+    }
 
     /// <summary>Card size held by a window of the given size.</summary>
     public static Size CardSizeForWindow(
-        double windowWidth, double windowHeight, double margin = GlowMargin) =>
-        new(
-            Math.Max(1, windowWidth - (margin * 2)),
-            Math.Max(1, windowHeight - (margin * 2)));
+        double windowWidth, double windowHeight, double margin = GlowMargin)
+    {
+        var (width, height) = WindowCardGeometry.CardSizeForWindow(windowWidth, windowHeight, margin);
+        return new Size(width, height);
+    }
 
     /// <summary>
     /// Background of the drag strip. It is an overlay lying on top of the widget
     /// content, so this must stay transparent — anything else would paint over
     /// whatever the widget is showing.
     /// </summary>
-    public IBrush? DragHandleBackground => DragHandle.Background;
+    internal IBrush? DragHandleBackground => DragHandle.Background;
 
     /// <summary>
     /// The cursor the drag strip asks for. Null means hovering it does not
     /// change the cursor.
     /// </summary>
-    public Cursor? DragHandleCursor => DragHandle.Cursor;
+    internal Cursor? DragHandleCursor => DragHandle.Cursor;
 
     /// <summary>Opacity of the drag affordance bar: 0 while it is hidden.</summary>
-    public double DragBarOpacity => DragBar.Opacity;
+    internal double DragBarOpacity => DragBar.Opacity;
 
     /// <summary>Colour of the drag affordance bar.</summary>
-    public IBrush? DragBarBackground => DragBar.Background;
+    internal IBrush? DragBarBackground => DragBar.Background;
 
     /// <summary>How many shadows the drag bar casts. Zero would mean it risks
     /// vanishing on a light background.</summary>
-    public int DragBarShadowCount => DragBar.BoxShadow.Count;
+    internal int DragBarShadowCount => DragBar.BoxShadow.Count;
 
     /// <summary>Whether the magnetism glow is currently drawn at all.</summary>
-    public bool IsSnapGlowVisible => SnapGlow.IsVisible;
+    internal bool IsSnapGlowVisible => SnapGlow.IsVisible;
 
     /// <summary>The stretches of the card currently lit by the magnetism glow.</summary>
-    public IReadOnlyList<WidgetGlowSegment> GlowSegments => SnapGlow.Segments;
+    internal IReadOnlyList<WidgetGlowSegment> GlowSegments => SnapGlow.Segments;
 
     /// <summary>Reach of the glow inwards from a vertical edge, in DIPs.</summary>
-    public double GlowHorizontalFadeLength => SnapGlow.HorizontalFadeLength;
+    internal double GlowHorizontalFadeLength => SnapGlow.HorizontalFadeLength;
 
     /// <summary>Reach of the glow inwards from a horizontal edge, in DIPs.</summary>
-    public double GlowVerticalFadeLength => SnapGlow.VerticalFadeLength;
+    internal double GlowVerticalFadeLength => SnapGlow.VerticalFadeLength;
 
     /// <summary>
     /// How far the light reaches along the edge beyond the region the widgets
     /// share. The shared region decides where the light is, not how far it goes.
     /// </summary>
-    public double GlowSpreadAlongEdge => SnapGlow.SpreadAlongEdge;
+    internal double GlowSpreadAlongEdge => SnapGlow.SpreadAlongEdge;
 
     /// <summary>
     /// The rectangle the glow can paint on, in window coordinates. The glow is a
     /// surface effect on the card, so this must sit inside the card — the
     /// renderer additionally clips it to the card's rounded outline.
     /// </summary>
-    public Rect GlowBounds => ToWindowBounds(SnapGlow);
+    internal Rect GlowBounds => ToWindowBounds(SnapGlow);
 
     /// <summary>Alpha used at the shared edge; well below opaque on purpose.</summary>
-    public byte GlowEdgeAlpha => SnapGlow.EdgeAlpha;
+    internal byte GlowEdgeAlpha => SnapGlow.EdgeAlpha;
 
     /// <summary>Shape of the falloff away from the shared edge.</summary>
-    public double GlowFalloffExponent => SnapGlow.FalloffExponent;
+    internal double GlowFalloffExponent => SnapGlow.FalloffExponent;
 
     /// <summary>Width of the specular band on the outermost edge, in DIPs.</summary>
-    public double GlowHighlightWidth => SnapGlow.EdgeHighlightWidth;
+    internal double GlowHighlightWidth => SnapGlow.EdgeHighlightWidth;
 
     /// <summary>Alpha of the specular band where it is brightest.</summary>
-    public byte GlowHighlightAlpha => SnapGlow.HighlightAlpha;
+    internal byte GlowHighlightAlpha => SnapGlow.HighlightAlpha;
 
     /// <summary>Colour of the specular band.</summary>
-    public Color GlowHighlightColor => SnapGlow.HighlightColor;
+    internal Color GlowHighlightColor => SnapGlow.HighlightColor;
 
     /// <summary>
     /// False means the glow cannot swallow pointer input, which is what lets it
     /// be an overlay.
     /// </summary>
-    public bool SnapGlowHitTestable => SnapGlow.IsHitTestVisible;
+    internal bool SnapGlowHitTestable => SnapGlow.IsHitTestVisible;
 
     /// <summary>
     /// Shows the magnetism glow on the given stretches of the card's edges, and
@@ -293,7 +297,7 @@ public partial class WidgetWindow : Window
     /// Sets the drag affordance appearance. Exposed so the self-test can drive
     /// it without synthesising pointer input.
     /// </summary>
-    public void SetDragAffordance(bool hovered, bool dragging)
+    internal void SetDragAffordance(bool hovered, bool dragging)
     {
         _hoveringDragHandle = hovered;
 
@@ -317,7 +321,7 @@ public partial class WidgetWindow : Window
     }
 
     /// <summary>Exposed so diagnostics can drive show/hide the same way the shell does.</summary>
-    public IDesktopLayerService DesktopLayer => _desktopLayer;
+    internal IDesktopLayerService DesktopLayer => _desktopLayer;
 
     protected override void OnOpened(EventArgs e)
     {
@@ -429,7 +433,7 @@ public partial class WidgetWindow : Window
     /// Which edges, if any, a pointer position grabs. The card's top band is
     /// excluded because the drag strip owns it; the top corners still resize.
     /// </summary>
-    public WidgetEdges HitTestResizeEdges(Point pointerInWindow) =>
+    internal WidgetEdges HitTestResizeEdges(Point pointerInWindow) =>
         WidgetResizeSession.HitTest(CardBounds, pointerInWindow, allowTopEdge: false);
 
     /// <summary>
@@ -437,7 +441,7 @@ public partial class WidgetWindow : Window
     /// The press handlers call this; it is public so the resize can also be
     /// driven programmatically.
     /// </summary>
-    public void BeginResize(WidgetEdges edges, PixelPoint pointerScreen)
+    internal void BeginResize(WidgetEdges edges, PixelPoint pointerScreen)
     {
         if (edges == WidgetEdges.None)
             return;
@@ -450,7 +454,7 @@ public partial class WidgetWindow : Window
     }
 
     /// <summary>Applies a resize for the given pointer position.</summary>
-    public void ApplyResize(PixelPoint pointerScreen)
+    internal void ApplyResize(PixelPoint pointerScreen)
     {
         if (_resizingEdges == WidgetEdges.None)
             return;
@@ -467,7 +471,7 @@ public partial class WidgetWindow : Window
     }
 
     /// <summary>Finishes a resize and reports it.</summary>
-    public void EndResize()
+    internal void EndResize()
     {
         if (_resizingEdges == WidgetEdges.None)
             return;
@@ -481,10 +485,10 @@ public partial class WidgetWindow : Window
     }
 
     /// <summary>True while an edge or corner is being dragged.</summary>
-    public bool IsResizing => _resizingEdges != WidgetEdges.None;
+    internal bool IsResizing => _resizingEdges != WidgetEdges.None;
 
     /// <summary>Which edges the in-progress resize is dragging.</summary>
-    public WidgetEdges ResizingEdges => _resizingEdges;
+    internal WidgetEdges ResizingEdges => _resizingEdges;
 
     /// <summary>Shows a resize cursor over the resize bands, and nothing elsewhere.</summary>
     private void UpdateResizeCursor(Point pointerInWindow)

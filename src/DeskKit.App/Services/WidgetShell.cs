@@ -94,7 +94,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
             new WidgetSurfaceFactory(desktopLayer, materials, _material, _surfaceMargin, assets.Icon),
             logger);
 
-        _startup = new ShellStartup(registry, logger);
+        _startup = new ShellStartup(registry, DefaultLayout.WidgetIds, logger);
         _settings = new SettingsWindowController(this, assets, languageService);
         _tray = new TrayIconController(this, _catalog, assets, languageService, () => _settings.Open(null));
         _storageNotices = new StorageNoticePresenter(notices, _tray);

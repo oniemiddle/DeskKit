@@ -2,9 +2,8 @@
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using Microsoft.Extensions.Logging;
-using DeskKit.Runtime;
 
-namespace DeskKit.App.Shell;
+namespace DeskKit.Runtime;
 
 /// <summary>
 /// The once-per-session work that explains what the store held and brings it in line
@@ -16,7 +15,10 @@ namespace DeskKit.App.Shell;
 /// version its provider declares. The runtime only ever reacts to the state it is
 /// handed, so it has no opinion about either.
 /// </remarks>
-internal sealed class ShellStartup(WidgetRegistry registry, ILogger logger)
+internal sealed class ShellStartup(
+    WidgetRegistry registry,
+    IReadOnlyList<string> firstRunWidgetIds,
+    ILogger logger)
 {
     /// <summary>
     /// Says what the load found. A plain load says nothing: a session that worked is
@@ -80,7 +82,7 @@ internal sealed class ShellStartup(WidgetRegistry registry, ILogger logger)
         ArgumentNullException.ThrowIfNull(screens);
 
         return WidgetSeedPolicy.CreateFirstRunPlacements(
-            DefaultLayout.WidgetIds,
+            firstRunWidgetIds,
             registry,
             screens,
             () => Guid.NewGuid().ToString("N"));

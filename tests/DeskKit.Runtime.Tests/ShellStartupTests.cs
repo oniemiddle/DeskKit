@@ -1,12 +1,10 @@
-﻿using DeskKit.App.Shell;
-using DeskKit.Core.Abstractions;
+﻿using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
-using DeskKit.Widgets.Clock;
 using Microsoft.Extensions.Logging.Abstractions;
 using DeskKit.Runtime;
 
-namespace DeskKit.App.Tests;
+namespace DeskKit.Runtime.Tests;
 
 /// <summary>
 /// The work the shell does once at startup: what a first run is given, and which stored
@@ -15,14 +13,15 @@ namespace DeskKit.App.Tests;
 /// </summary>
 public sealed class ShellStartupTests
 {
-    private const string ClockId = ClockWidgetProvider.WidgetId;
+    /// <summary>Any widget id: the runtime never knows which ones a build ships.</summary>
+    private const string ClockId = "test.clock";
 
     private const string SettingKey = "value";
 
     private static readonly ScreenBounds Primary = new(0, 0, 1920, 1080);
 
     [Fact]
-    public void AFirstRunIsGivenTheDefaultLayout()
+    public void AFirstRunIsGivenTheIdsItWasHanded()
     {
         var startup = StartupWith(Provider());
 
@@ -44,7 +43,7 @@ public sealed class ShellStartupTests
     {
         // No provider registered at all: the default layout names a widget this build
         // cannot make, which has to leave an empty desktop rather than throwing.
-        var startup = new ShellStartup(new WidgetRegistry(), NullLogger.Instance);
+        var startup = new ShellStartup(new WidgetRegistry(), [ClockId], NullLogger.Instance);
 
         Assert.Empty(startup.FirstRunPlacements([Primary]));
     }
@@ -90,7 +89,7 @@ public sealed class ShellStartupTests
     [Fact]
     public void AWidgetThisBuildDoesNotHaveIsLeftAlone()
     {
-        var startup = new ShellStartup(new WidgetRegistry(), NullLogger.Instance);
+        var startup = new ShellStartup(new WidgetRegistry(), [ClockId], NullLogger.Instance);
 
         Assert.Null(startup.MigrateWidgetSettings([Placed(version: 1)]));
     }
@@ -106,7 +105,7 @@ public sealed class ShellStartupTests
     {
         var registry = new WidgetRegistry();
         registry.Register(provider);
-        return new ShellStartup(registry, NullLogger.Instance);
+        return new ShellStartup(registry, [ClockId], NullLogger.Instance);
     }
 
     private static IWidgetProvider Provider() =>

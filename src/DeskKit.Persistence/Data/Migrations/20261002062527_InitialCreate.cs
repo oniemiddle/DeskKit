@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace DeskKit.Core.Data.Migrations
+namespace DeskKit.Persistence.Data.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

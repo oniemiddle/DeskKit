@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 
-namespace DeskKit.Core.Data;
+namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// The application's database: one row of preferences and one row per placed
@@ -11,7 +11,7 @@ namespace DeskKit.Core.Data;
 /// understands from one written by a newer build by comparing the migration ids
 /// compiled into it with the ids recorded in the database's
 /// <c>__EFMigrationsHistory</c> table, rather than by carrying a version number of
-/// its own — see <c>StateStore</c>.
+/// its own 鈥?see <c>StateStore</c>.
 /// </remarks>
 public sealed class DeskKitDbContext : DbContext
 {

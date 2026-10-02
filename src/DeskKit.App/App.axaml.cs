@@ -9,6 +9,7 @@ using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
+using DeskKit.Persistence;
 using DeskKit.Platform;
 using DeskKit.Widgets;
 using Microsoft.Extensions.DependencyInjection;
@@ -145,7 +146,7 @@ public partial class App : Application
                 dispose: true);
         });
 
-        services.AddSingleton<StateStore>();
+        services.AddSingleton<IStateStore, StateStore>();
         services.AddSingleton<IWidgetMessageBus, WidgetMessageBus>();
         services.AddSingleton<TickService>();
         services.AddSingleton<ThemeService>();

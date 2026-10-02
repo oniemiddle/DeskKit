@@ -12,6 +12,7 @@ using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
+using DeskKit.Persistence;
 using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets;

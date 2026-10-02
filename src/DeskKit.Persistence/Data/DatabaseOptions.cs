@@ -1,7 +1,7 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace DeskKit.Core.Data;
+namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// Builds the options every connection to the store is opened with, so the shell,

@@ -1,12 +1,13 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
-using DeskKit.Core.Data;
+using DeskKit.Persistence;
+using DeskKit.Persistence.Data;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace DeskKit.Core.Tests;
+namespace DeskKit.Persistence.Tests;
 
 public sealed class StateStoreTests : IDisposable
 {
@@ -30,8 +31,8 @@ public sealed class StateStoreTests : IDisposable
 
     public void Dispose()
     {
-        // The provider pools connections, so a database file stays open — and cannot
-        // be deleted — until the pool for it is cleared.
+        // The provider pools connections, so a database file stays open 鈥?and cannot
+        // be deleted 鈥?until the pool for it is cleared.
         SqliteConnection.ClearAllPools();
 
         try
@@ -566,7 +567,7 @@ public sealed class StateStoreTests : IDisposable
     }
 
     /// <summary>
-    /// Runs one statement, returning <c>default</c> when the database refuses it —
+    /// Runs one statement, returning <c>default</c> when the database refuses it 鈥?
     /// which is how a copy that is missing its table is told apart from one that has it.
     /// </summary>
     private static T? Scalar<T>(string databasePath, string sql)

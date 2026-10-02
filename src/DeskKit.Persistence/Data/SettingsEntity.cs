@@ -1,6 +1,6 @@
-using DeskKit.Core.Models;
+﻿using DeskKit.Core.Models;
 
-namespace DeskKit.Core.Data;
+namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// The application preferences, as the single row of the <c>Settings</c> table.

@@ -1,3 +1,5 @@
+using DeskKit.Core.Abstractions;
+
 namespace DeskKit.Core.Services;
 
 /// <summary>What happened the last time the store was opened.</summary>
@@ -35,7 +37,7 @@ public enum StoreOutcome
 /// <param name="Detail">What was wrong, for the log.</param>
 public sealed record StoreProblem(string Subject, string Detail);
 
-/// <summary>What <see cref="StateStore.Load"/> found.</summary>
+/// <summary>What <see cref="IStateStore.Load"/> found.</summary>
 /// <param name="ImportedFrom">
 /// Which of the old configuration files the state came from, when it was imported.
 /// </param>
@@ -71,7 +73,7 @@ public enum StoreSaveOutcome
     RefusedNewerSchema,
 }
 
-/// <summary>What <see cref="StateStore.Save"/> wrote.</summary>
+/// <summary>What <see cref="IStateStore.Save"/> wrote.</summary>
 /// <param name="RowsWritten">
 /// How many rows the database actually changed. Zero means the state was already
 /// stored, which is what keeps a debounced save after a drag from rewriting rows

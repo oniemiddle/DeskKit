@@ -31,7 +31,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// <summary>How close an edge must be, in physical pixels, before it snaps.</summary>
     private const int SnapThreshold = WidgetSnapEngine.DefaultThreshold;
 
-    private readonly StateStore _stateStore;
+    private readonly IStateStore _stateStore;
     private readonly WidgetRegistry _registry;
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
@@ -55,7 +55,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private DispatcherTimer? _saveTimer;
 
     public WidgetShell(
-        StateStore stateStore,
+        IStateStore stateStore,
         WidgetRegistry registry,
         IDesktopLayerService desktopLayer,
         IAutoStartService autoStart,

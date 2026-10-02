@@ -1,10 +1,12 @@
-using System.Text.Json;
-using DeskKit.Core.Data;
+﻿using System.Text.Json;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
+using DeskKit.Core.Services;
+using DeskKit.Persistence.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace DeskKit.Core.Services;
+namespace DeskKit.Persistence;
 
 /// <summary>
 /// Loads and stores <see cref="AppState"/> in the application's database.
@@ -27,7 +29,7 @@ namespace DeskKit.Core.Services;
 /// seen; the session runs with nothing loaded and saves nothing, and says so.
 /// </para>
 /// </remarks>
-public sealed class StateStore
+public sealed class StateStore : IStateStore
 {
     /// <summary>Where the source of an import is recorded, for the log and for support.</summary>
     private const string ImportedFromKey = "imported-from";
@@ -61,7 +63,7 @@ public sealed class StateStore
     public StoreLoadReport LoadReport { get; private set; } = new(StoreOutcome.NotLoaded, [], null);
 
     /// <summary>
-    /// True when the store found state to load — a database, or the old configuration
+    /// True when the store found state to load 鈥?a database, or the old configuration
     /// files it imported. Used to tell a first run apart from a user who deliberately
     /// removed every widget, so that a default widget is seeded exactly once.
     /// </summary>
@@ -115,7 +117,7 @@ public sealed class StateStore
     }
 
     /// <summary>
-    /// Writes the state, unless the session may not write — see the remarks on the
+    /// Writes the state, unless the session may not write 鈥?see the remarks on the
     /// class. A failure to write throws, so the caller logs the reason.
     /// </summary>
     public StoreSaveReport Save(AppState state)

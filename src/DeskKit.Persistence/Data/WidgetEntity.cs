@@ -1,4 +1,4 @@
-namespace DeskKit.Core.Data;
+﻿namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// One placed widget, as a row of the <c>Widgets</c> table.

@@ -1,7 +1,7 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace DeskKit.Core.Data;
+namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// Puts the database into write-ahead logging and asks it to flush on commit.

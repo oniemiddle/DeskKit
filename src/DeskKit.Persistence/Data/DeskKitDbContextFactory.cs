@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore.Design;
+﻿using Microsoft.EntityFrameworkCore.Design;
 
-namespace DeskKit.Core.Data;
+namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// Lets the EF Core tools build the model without starting the app.

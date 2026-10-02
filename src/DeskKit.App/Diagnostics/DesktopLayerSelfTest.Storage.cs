@@ -10,6 +10,7 @@ using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
+using DeskKit.Persistence;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets.QuickLaunch;
 using Microsoft.Data.Sqlite;

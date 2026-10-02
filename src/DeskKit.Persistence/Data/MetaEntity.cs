@@ -1,4 +1,4 @@
-namespace DeskKit.Core.Data;
+﻿namespace DeskKit.Persistence.Data;
 
 /// <summary>
 /// One fact about the database itself, as a row of the <c>Meta</c> table.

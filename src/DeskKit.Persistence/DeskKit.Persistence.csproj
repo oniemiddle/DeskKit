@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- The database backup is an implementation detail, but the one property worth
+         testing about it - that a copy taken while the database is in write-ahead
+         logging still holds the newest commits - can only be tested directly. -->
+    <InternalsVisibleTo Include="DeskKit.Persistence.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The only project allowed to hold a database stack. Core and Runtime see
+         storage only through IStateStore, so neither is dragged into EF Core. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

@@ -1,7 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using DeskKit.Core.Models;
+using DeskKit.Core.Services;
 
-namespace DeskKit.Core.Services;
+namespace DeskKit.Persistence;
 
 /// <summary>What the old JSON configuration files said, if there were any.</summary>
 /// <param name="Source">Which files it came from, kept so the database can record it.</param>

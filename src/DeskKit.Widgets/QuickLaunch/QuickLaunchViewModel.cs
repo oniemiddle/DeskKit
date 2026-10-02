@@ -13,8 +13,10 @@ namespace DeskKit.Widgets.QuickLaunch;
 /// </summary>
 public sealed partial class QuickLaunchViewModel : WidgetViewModel
 {
-    private const string KeyItems = "items";
     private const string KeyIconSize = "iconSize";
+
+    /// <summary>The key the shortcut list is stored under. Read by the provider's migration too.</summary>
+    internal const string KeyItems = "items";
 
     private readonly IShellIconLoader _iconLoader;
     private bool _loading = true;

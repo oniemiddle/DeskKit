@@ -91,4 +91,50 @@ public sealed class WidgetSettingsTests
 
         Assert.Equal(4, values["paper"].GetInt32());
     }
+
+    // ---- Naming, inside the file's own style -----------------------------
+
+    private sealed record Nested(string Name, string Target);
+
+    [Fact]
+    public void Set_WritesANestedObjectInTheSameNamingAsTheFileAroundIt()
+    {
+        var settings = new WidgetSettings([]);
+
+        settings.Set("items", new List<Nested> { new("Notepad", "notepad.exe") });
+
+        var json = settings.ToDictionary()["items"].GetRawText();
+
+        // camelCase, like the file this ends up buried in, rather than the
+        // serializer's default of the property names as declared.
+        Assert.Contains("\"name\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Name\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Set_ThenGet_RoundTripsANestedObject()
+    {
+        var settings = new WidgetSettings([]);
+        var items = new List<Nested> { new("Notepad", "notepad.exe") };
+
+        settings.Set("items", items);
+        var readBack = settings.Get("items", new List<Nested>());
+
+        Assert.Equal("Notepad", Assert.Single(readBack).Name);
+        Assert.Equal("notepad.exe", readBack[0].Target);
+    }
+
+    [Fact]
+    public void Get_StillReadsANestedObjectWrittenInPascalCase()
+    {
+        // What an earlier build wrote, and what is in the file of anyone who
+        // upgrades. Renaming the fields without being able to read these back would
+        // lose the shortcuts in every launcher.
+        var pascal = JsonSerializer.SerializeToElement(new List<Nested> { new("Notepad", "notepad.exe") });
+        var settings = new WidgetSettings(new Dictionary<string, JsonElement> { ["items"] = pascal });
+
+        var readBack = settings.Get("items", new List<Nested>());
+
+        Assert.Equal("Notepad", Assert.Single(readBack).Name);
+    }
 }

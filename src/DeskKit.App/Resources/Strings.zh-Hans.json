@@ -40,5 +40,11 @@
     "ShowAll": "显示全部组件",
     "Settings": "设置…",
     "Exit": "退出"
+  },
+  "Notice": {
+    "Title": "DeskKit 现在无法保存",
+    "Unavailable": "数据库无法打开，因此没有载入任何内容，也不会保存任何改动。请关闭占用它的程序，然后重启 DeskKit。",
+    "NewerSchema": "数据库由更新版本的 DeskKit 写入。它保持原样，因此 DeskKit 选择退出，而不是显示一份它无法保存的布局。升级 DeskKit 即可使用。",
+    "DataProblem": "部分已保存的数据读取失败。读取失败的部分保持原样，具体见日志。"
   }
 }

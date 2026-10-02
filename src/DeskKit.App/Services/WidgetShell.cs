@@ -19,7 +19,7 @@ namespace DeskKit.App.Services;
 
 /// <summary>
 /// Owns every widget: creating and destroying windows, keeping placements in
-/// sync with the config file, driving the shared tick, and providing the tray
+/// sync with the database, driving the shared tick, and providing the tray
 /// menu and settings window.
 /// </summary>
 public sealed class WidgetShell : IWidgetHost, IDisposable
@@ -32,7 +32,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     /// <summary>How close an edge must be, in physical pixels, before it snaps.</summary>
     private const int SnapThreshold = WidgetSnapEngine.DefaultThreshold;
 
-    private readonly ConfigStore _configStore;
+    private readonly StateStore _stateStore;
     private readonly WidgetRegistry _registry;
     private readonly IDesktopLayerService _desktopLayer;
     private readonly IAutoStartService _autoStart;
@@ -41,6 +41,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private readonly LanguageService _languageService;
     private readonly IWindowMaterialService _materials;
     private readonly ILogger<WidgetShell> _logger;
+    private readonly INoticePresenter _notices;
     private readonly List<WidgetRuntime> _widgets = [];
 
     /// <summary>The material every widget window carries, already resolved.</summary>
@@ -55,7 +56,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     private DispatcherTimer? _saveTimer;
 
     public WidgetShell(
-        ConfigStore configStore,
+        StateStore stateStore,
         WidgetRegistry registry,
         IDesktopLayerService desktopLayer,
         IAutoStartService autoStart,
@@ -63,7 +64,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         ThemeService themeService,
         ILogger<WidgetShell> logger)
         : this(
-            configStore,
+            stateStore,
             registry,
             desktopLayer,
             autoStart,
@@ -71,12 +72,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             themeService,
             new NullWindowMaterialService(),
             new LanguageService(),
+            NullNoticePresenter.Instance,
             logger)
     {
     }
 
     public WidgetShell(
-        ConfigStore configStore,
+        StateStore stateStore,
         WidgetRegistry registry,
         IDesktopLayerService desktopLayer,
         IAutoStartService autoStart,
@@ -85,7 +87,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         IWindowMaterialService materials,
         ILogger<WidgetShell> logger)
         : this(
-            configStore,
+            stateStore,
             registry,
             desktopLayer,
             autoStart,
@@ -93,12 +95,13 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             themeService,
             materials,
             new LanguageService(),
+            NullNoticePresenter.Instance,
             logger)
     {
     }
 
     public WidgetShell(
-        ConfigStore configStore,
+        StateStore stateStore,
         WidgetRegistry registry,
         IDesktopLayerService desktopLayer,
         IAutoStartService autoStart,
@@ -106,9 +109,10 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         ThemeService themeService,
         IWindowMaterialService materials,
         LanguageService languageService,
+        INoticePresenter notices,
         ILogger<WidgetShell> logger)
     {
-        _configStore = configStore;
+        _stateStore = stateStore;
         _registry = registry;
         _desktopLayer = desktopLayer;
         _autoStart = autoStart;
@@ -116,6 +120,7 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         _themeService = themeService;
         _materials = materials;
         _languageService = languageService;
+        _notices = notices;
         _logger = logger;
 
         // Resolved once, at construction, because the answer changes the layout of
@@ -169,30 +174,55 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
     public void RequestSave() => ScheduleSave();
 
+    /// <summary>
+    /// True when the stored data belongs to a newer build. Nothing was read and
+    /// nothing may be written, so a session that carried on would show an empty
+    /// desktop and quietly keep none of it.
+    /// </summary>
+    public bool StoredDataIsNewer => _stateStore.LoadReport.Outcome == StoreOutcome.NewerSchema;
+
     // ---- Lifecycle -------------------------------------------------------
 
     public void Start()
     {
-        State = _configStore.Load();
+        State = _stateStore.Load();
 
-        if (_configStore.LastCorruptFileBackup is { Length: > 0 } backup)
+        var report = _stateStore.LoadReport;
+
+        foreach (var problem in report.Problems)
         {
             _logger.LogWarning(
-                "The configuration file could not be parsed and was moved to {Backup}", backup);
+                "Storage problem with {Subject}: {Detail}", problem.Subject, problem.Detail);
         }
 
-        if (_configStore.LastLoadOutcome == ConfigLoadOutcome.Unreadable)
+        switch (report.Outcome)
         {
-            // The one message that explains this session. It is written here rather
-            // than when a save is refused, because an unreadable file means no
-            // widgets are restored, so the session may well end without ever
-            // attempting to save — and the user would be left with an empty desktop
-            // and no explanation anywhere.
-            _logger.LogWarning(
-                "The configuration file {File} exists but could not be read, so DeskKit started "
-                + "with nothing and will not overwrite it. Changes made in this session will not "
-                + "be saved. Close whatever is holding the file, then restart DeskKit.",
-                _configStore.FilePath);
+            // The two messages that explain a session. They are logged here rather than
+            // when a save is refused, because this runs before anything can be changed
+            // and a session may end without ever attempting to save — which would leave
+            // the user with an empty desktop and no explanation anywhere.
+            case StoreOutcome.NewerSchema:
+                _logger.LogWarning(
+                    "The database {File} was written by a newer version of DeskKit, so it was not "
+                    + "read and will not be written over. Upgrade DeskKit to use the layout it "
+                    + "holds; nothing done in this session will be saved.",
+                    _stateStore.DatabasePath);
+                break;
+
+            case StoreOutcome.Unavailable:
+                _logger.LogWarning(
+                    "The database {File} could not be opened, so DeskKit started with nothing "
+                    + "loaded and will not write over it. Nothing done in this session will be "
+                    + "saved. Close whatever is holding it, then restart DeskKit.",
+                    _stateStore.DatabasePath);
+                break;
+
+            case StoreOutcome.Imported:
+                _logger.LogInformation(
+                    "Imported the configuration from {Source} into {Database}",
+                    report.ImportedFrom,
+                    _stateStore.DatabasePath);
+                break;
         }
 
         _themeService.Apply(State.Settings.Theme);
@@ -203,7 +233,9 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         ReconcileAutoStart();
 
-        if (!_configStore.FileExistedOnLoad)
+        MigrateWidgetSettings();
+
+        if (!_stateStore.HasStoredState)
             SeedDefaultWidgets();
 
         // The stored placements are deliberately not normalised into State: a display
@@ -217,6 +249,8 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
 
         _tickService.Start();
         CreateTrayIcon();
+
+        ShowStorageNotice();
     }
 
     /// <summary>
@@ -243,6 +277,113 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
         };
 
         ScheduleSave();
+    }
+
+    /// <summary>
+    /// Brings each widget's own settings up to the version its provider declares.
+    /// </summary>
+    /// <remarks>
+    /// This does write back into the stored placements, which the placement rules
+    /// otherwise never do. The difference is what is being written: a display that
+    /// cannot show a widget is this session's problem, while a settings migration is
+    /// a real change to what was stored — the same kind of correction as reconciling
+    /// the start-with-Windows flag against the registry.
+    /// </remarks>
+    private void MigrateWidgetSettings()
+    {
+        var migrated = false;
+
+        for (var index = 0; index < State.Widgets.Count; index++)
+        {
+            var placement = State.Widgets[index];
+
+            if (_registry.Find(placement.WidgetId) is IWidgetSettingsMigrations declared)
+            {
+                var version = SettingsMigrations.Apply(
+                    new WidgetSettings(placement.Settings),
+                    placement.SettingsVersion,
+                    declared.SettingsVersion,
+                    declared.Migrations,
+                    out var problem);
+
+                if (problem is not null)
+                {
+                    _logger.LogWarning(
+                        "Widget {InstanceId} ({WidgetId}) settings were left alone: {Problem}",
+                        placement.InstanceId,
+                        placement.WidgetId,
+                        problem);
+                    continue;
+                }
+
+                if (version == placement.SettingsVersion)
+                    continue;
+
+                State.Widgets[index] = placement with { SettingsVersion = version };
+                migrated = true;
+
+                _logger.LogInformation(
+                    "Widget {InstanceId} ({WidgetId}) settings brought forward to version {Version}",
+                    placement.InstanceId,
+                    placement.WidgetId,
+                    version);
+            }
+        }
+
+        // Persisted now rather than whenever something else happens to change: a
+        // migration that only reached the disk on exit would run again on every
+        // start until then.
+        if (migrated)
+            ScheduleSave();
+    }
+
+    /// <summary>
+    /// Puts whatever went wrong with the stored files in front of the user, once,
+    /// rather than only in the log.
+    /// </summary>
+    /// <remarks>
+    /// The log holds the details, but it is only read once something has already
+    /// gone wrong. A session that has quietly stopped saving loses the user's work at
+    /// the point they close the application, which is far too late to say so.
+    /// </remarks>
+    private void ShowStorageNotice()
+    {
+        var report = _stateStore.LoadReport;
+        if (!report.HasProblems)
+            return;
+
+        var lines = new List<string>();
+
+        switch (report.Outcome)
+        {
+            case StoreOutcome.Unavailable:
+                lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_Unavailable));
+                break;
+
+            case StoreOutcome.NewerSchema:
+                lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_NewerSchema));
+                break;
+
+            default:
+                // Import or read problems, which the outcome alone does not describe:
+                // the session runs as usual, minus whatever could not be read. The two
+                // outcomes above already say that nothing was read at all, so line by
+                // line detail would only bury them.
+                if (report.Problems.Count > 0)
+                    lines.Add(LinguaText.Of(AppLanguage.Instance.Notice_DataProblem));
+                break;
+        }
+
+        var title = LinguaText.Of(AppLanguage.Instance.Notice_Title);
+
+        _notices.Show(new Notice(
+            title,
+            string.Join(Environment.NewLine + Environment.NewLine, lines)));
+
+        // Repeated on the tray icon, which neither expires when the notice does nor can
+        // be covered by anything.
+        if (_trayIcon is not null)
+            _trayIcon.ToolTipText = $"DeskKit — {title}";
     }
 
     /// <summary>
@@ -611,6 +752,10 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
             Y = screen.Y + 80 + offset,
             Width = descriptor.DefaultWidth,
             Height = descriptor.DefaultHeight,
+
+            // A widget created now is written in today's shape, so it never has to
+            // be migrated and must not be stamped with a version it did not come from.
+            SettingsVersion = (provider as IWidgetSettingsMigrations)?.SettingsVersion ?? 1,
         };
     }
 
@@ -827,17 +972,14 @@ public sealed class WidgetShell : IWidgetHost, IDisposable
     {
         try
         {
-            if (_configStore.Save(State) == ConfigSaveOutcome.RefusedUnreadable)
-            {
-                // Silently skipped on purpose: Start already warned, in full, that
-                // this session cannot save. Saying it again on every debounced save
-                // would only fill the log.
-                return;
-            }
+            // A refusal is deliberately not reported here: Start already said what may
+            // not be written, in full, and this runs on every debounced change.
+            // Repeating it would only fill the log.
+            _stateStore.Save(State);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Could not write the configuration file");
+            _logger.LogError(ex, "Could not write the configuration");
         }
     }
 

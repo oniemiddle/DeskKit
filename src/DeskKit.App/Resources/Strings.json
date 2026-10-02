@@ -40,5 +40,11 @@
     "ShowAll": "Show all widgets",
     "Settings": "Settings\u2026",
     "Exit": "Exit"
+  },
+  "Notice": {
+    "Title": "DeskKit cannot save right now",
+    "Unavailable": "The database could not be opened, so nothing was loaded and nothing will be saved. Close whatever is holding it, then restart DeskKit.",
+    "NewerSchema": "The database was written by a newer version of DeskKit. It was left exactly as it is, so DeskKit is closing rather than showing a layout it cannot keep. Upgrade DeskKit to use it.",
+    "DataProblem": "Some of the stored data could not be read. What could not be read was left alone; the log names it."
   }
 }

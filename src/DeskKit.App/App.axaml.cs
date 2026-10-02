@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using DeskKit.App.Diagnostics;
 using DeskKit.App.Services;
+using DeskKit.App.Views;
 using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
@@ -21,7 +22,7 @@ public partial class App : Application
     private ServiceProvider? _services;
     private WidgetShell? _shell;
 
-    /// <summary>Held for the lifetime of the process, so one instance owns the config file.</summary>
+    /// <summary>Held for the lifetime of the process, so one instance owns the database.</summary>
     private SingleInstanceGuard? _instanceGuard;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -100,6 +101,22 @@ public partial class App : Application
                 .LogCritical(ex, "DeskKit failed to start");
             throw;
         }
+
+        if (_shell.StoredDataIsNewer)
+        {
+            // Nothing was read and nothing may be written, so carrying on would show an
+            // empty desktop and keep none of what the user did with it. The notice says
+            // so, and the process waits for it to be read rather than vanishing behind it.
+            var wait = new DispatcherTimer { Interval = NoticeWindow.Duration + TimeSpan.FromSeconds(1) };
+
+            wait.Tick += (_, _) =>
+            {
+                wait.Stop();
+                desktop.Shutdown();
+            };
+
+            wait.Start();
+        }
     }
 
     private static ServiceProvider BuildServices()
@@ -112,9 +129,10 @@ public partial class App : Application
             builder.AddProvider(new FileLoggerProvider(AppPaths.LogDirectory));
         });
 
-        services.AddSingleton<ConfigStore>();
+        services.AddSingleton<StateStore>();
         services.AddSingleton<TickService>();
         services.AddSingleton<ThemeService>();
+        services.AddSingleton<INoticePresenter, NoticePresenter>();
 
         // One instance for the whole process: it drives both the shell's and the
         // widgets' resource managers, and two of them would fight over the culture.

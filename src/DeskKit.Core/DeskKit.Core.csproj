@@ -1,10 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- The database backup is an implementation detail, but the one property worth
+         testing about it — that a copy taken while the database is in write-ahead
+         logging still holds the newest commits — can only be tested directly. -->
+    <InternalsVisibleTo Include="DeskKit.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Core owns the widget contract, which returns an Avalonia control, so it
          references the UI framework but nothing platform specific. -->
     <PackageReference Include="Avalonia" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 

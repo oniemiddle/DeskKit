@@ -19,6 +19,13 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Headless, and before Avalonia is set up, because its whole job is to be
+        // killed without warning while it is writing. It refuses rather than falling
+        // through, so a launch this mode cannot honour never becomes a normal run
+        // against the real database.
+        if (DesktopLayerSelfTest.IsWriteLoopRequested(args))
+            return DesktopLayerSelfTest.RunWriteLoop(args);
+
         if (DesktopLayerSelfTest.IsRequested(args))
         {
             DesktopLayerSelfTest.Requested = DesktopLayerSelfTest.FromArgs(args);

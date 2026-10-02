@@ -45,10 +45,10 @@ dotnet run --project src/DeskKit.App
 dotnet test DeskKit.slnx
 ```
 
-The unit tests cover the parts that are pure logic: configuration round-trips,
-corrupt-file recovery, the read-failure guard, placement clamping, widget
-settings, the language preference, and every branch of the desktop-layer and
-window-material decision rules.
+The unit tests cover the parts that are pure logic: database round-trips, the
+schema-migration and refusal rules, the import of the old JSON layout, placement
+clamping, widget settings, the language preference, and every branch of the
+desktop-layer and window-material decision rules.
 
 ### Verifying the desktop behaviour
 
@@ -66,8 +66,19 @@ It shows a probe widget, drives every code path the shell uses to hide a window
 (<kbd>Win+D</kbd>, `SC_DESKTOP`, `ShowWindow(SW_SHOWMINIMIZED)`, a
 `SWP_HIDEWINDOW` request, a raise-to-top request), photographs the result with
 `BitBlt` to confirm the rounded corner really is see-through, and finally drives
-the real shell against a throwaway config directory to check first-run seeding,
-pinning, persistence and restore. The exit code is 0 when every check passes.
+the real shell against a throwaway database and a throwaway copy of the old JSON
+layout to check first-run seeding, pinning, the import, persistence and restore.
+The exit code is 0 when every check passes.
+
+One section is different: to measure the durability claim rather than quote it,
+the self-test starts a *second copy of itself* (`--stress-write <database>`,
+which writes in a loop and refuses any path outside `%TEMP%`), waits until that
+copy has committed something, kills it mid-loop, and then opens the database to
+check that it opens, that `PRAGMA integrity_check` says `ok`, and that the last
+save is whole rather than applied in part. That switch is the only extra way in
+to the executable, and it is exclusive on purpose: it either writes to the
+temporary path it was given or exits non-zero, and never falls through to
+starting the application.
 
 ## How the desktop layer works
 
@@ -407,7 +418,7 @@ pushing back the edge being dragged rather than by moving the anchored one.
 
 ```
 src/
-  DeskKit.Core/        models, configuration, widget contract (no platform code)
+  DeskKit.Core/        models, storage, widget contract (no platform code)
   DeskKit.Platform/    OS interop: window pinning, surface materials, shell icons, autostart
   DeskKit.Widgets/     the built-in widgets and their strings
   DeskKit.App/         Avalonia shell: window host, tray, settings window, and its strings
@@ -420,27 +431,81 @@ scripts/
 
 ## Data
 
-Nothing is sent to a server. Configuration lives in
-`%APPDATA%\DeskKit\config.json`, logs in `%LOCALAPPDATA%\DeskKit\logs\`.
+Nothing is sent to a server. Everything the application persists lives in one SQLite
+database, `%LOCALAPPDATA%\DeskKit\deskkit.db`, and logs go to
+`%LOCALAPPDATA%\DeskKit\logs\`.
 
-The configuration stays in the **roaming** folder on purpose: it holds the user's
-own content — the text of a note, the shortcuts in a launcher — and roaming
-profiles are the ones that get backed up and synchronised. Logs go to the local
-folder, where machine-local output belongs, so a roaming profile does not carry
-them to a server.
+```
+%LOCALAPPDATA%\DeskKit\
+  deskkit.db                        preferences and every placed widget
+  deskkit.db-wal, deskkit.db-shm    write-ahead logging, while the app is running
+  deskkit.pre-migration-backup.db   a whole copy, taken before a schema migration runs
+  logs\
 
-Three rules protect the stored layout, all of which exist because breaking them
-destroys it silently:
+%APPDATA%\DeskKit\                  the JSON this used to be: read once, then left alone
+  settings.json
+  widgets\
+  config.json
+```
 
-- **A file that cannot be read is never written over.** If the config exists but
-  cannot be read — an antivirus scan or a backup tool holding it, say — DeskKit
-  retries a few times, and if it still cannot, it starts with nothing for that
-  session and **refuses to save**, so the real file survives untouched. The
-  warning in the log explains it. Losing one session's changes is recoverable;
-  overwriting a layout that was never read is not. A file that cannot be
-  *parsed* is a different case and is handled differently: it is moved aside to
-  `config.corrupt-<timestamp>.json` and a fresh one is written, because there was
-  nothing readable in it to protect.
+**Why a database, and what it cost.** The configuration used to be JSON: a
+`settings.json` with the preferences, and one file per widget. That layout was readable
+and patchable by hand, and a damaged file cost exactly one widget — at the price of a
+hand-written atomic write, a version number per file, a rule for every way a file could
+go wrong, and a migration pipeline with no tooling behind it. Those are now SQLite's
+commit protocol and EF Core's migrations. The trade is real, so it is stated rather
+than implied:
+
+| Property | As JSON files | As a database |
+|---|---|---|
+| Editable by hand | yes, in any text editor | only with a SQLite client |
+| Blast radius of damage | one widget | the whole layout |
+| User content travels with a roaming profile | yes | **no** |
+| Interrupted write | hand-written temporary file, flush, swap | SQLite's commit protocol |
+| Schema version and migrations | hand-written | EF Core migrations |
+
+The database is in the **local** folder and cannot go back to the roaming one: it is a
+single file written in place, so a profile copy or a folder redirection that reaches it
+while it is open is a way to corrupt it. The consequence is plain, and worth saying
+rather than burying: the text of a note and the shortcuts in a launcher no longer
+follow a roaming profile to another machine.
+
+**What a build does with what it finds.** The schema is the set of EF Core migrations
+compiled into the build, and the database records which of them it has applied in
+`__EFMigrationsHistory`. Each situation is decided on its own:
+
+| On disk | What happens |
+|---|---|
+| nothing, and no old JSON | first run: the database is created, and one clock is seeded |
+| the old JSON, no database | imported once; from then on only the database is written |
+| a database this build understands | read, migrated if migrations are pending, written as usual |
+| a database with a migration this build has never heard of | **nothing is read and nothing is written.** A notice says so, and the application exits rather than showing an empty desktop it cannot save |
+| a database that cannot be opened, or is not a database | nothing is read and nothing is written; the session runs with nothing loaded, refuses every save, and says so |
+| a widget's stored settings that cannot be parsed | that widget comes up with its defaults; the rest of the layout is unaffected |
+
+Before a migration runs, a whole copy of the database is taken to
+`deskkit.pre-migration-backup.db` — unless there is nothing to lose yet, in which case
+copying it would only overwrite a good backup with an empty one. The copy goes through
+SQLite's own backup API rather than a file copy, because in write-ahead logging the
+newest commits are still in the `-wal` file: copying `deskkit.db` on its own can
+produce a backup that is missing them. A test asserts exactly that.
+
+The notice is drawn by the application rather than raised as a tray balloon: Avalonia's
+`TrayIcon` has no balloon of its own — it holds the platform's notification data
+internally and does not expose the handle an extra one would need, so registering a
+second would mean a second tray icon. It appears once, in the corner a balloon would
+have used, does not take focus, and closes on a click or after a few seconds.
+
+It asks to be topmost, but whether it actually ends up in front of a maximised window
+could not be confirmed here: on the machine this was built on, no window could be made
+topmost at all — an unrelated WinForms window with `TopMost = true` came out without it
+too, so that measurement says nothing about this window in particular. The same warning
+is also put on the tray icon's tooltip, which is worth having anyway: it does not
+expire when the notice does, and it cannot be covered by anything.
+
+Two further rules protect the layout itself, both of which exist because breaking
+them destroys it silently:
+
 - **An adjustment made for the current displays is not saved as if the user had
   made it.** A widget whose saved position is on a monitor that is not connected is
   shown on the nearest one, but the saved position is left alone, so plugging that
@@ -449,7 +514,7 @@ destroys it silently:
   on a roaming profile it made two machines overwrite each other's positions.
   Positions are only written when the user actually drags or resizes a widget.
 - **One instance per logon session.** A named mutex keeps a second launch from
-  starting a rival set of widgets and overwriting the first one's config; the
+  starting a rival set of widgets and overwriting the first one's files; the
   second instance logs why and exits. The mutex is a kernel object, so it is
   released even on a crash and there is no stale lock to clean up.
 
@@ -459,17 +524,68 @@ that says "on" is routinely wrong on a second computer. The registry is treated 
 the truth and the stored value is corrected at startup — the alternative, writing a
 run key because a file said so, is a side effect nobody asked for on that machine.
 
-The remaining gap, stated rather than hidden: two **sessions** of the same user
-(console plus RDP, or fast user switching) still share one config file and can
-still overwrite each other. The mutex is session-scoped on purpose — making it
-machine-wide would leave a session the user is actually sitting in with no widgets
-at all — and a file lock cannot close the gap either, since holding a handle on
-`config.json` would break the temporary-file-and-swap write.
+**Two sessions of the same user** (console plus RDP, or fast user switching) share the
+one database. SQLite takes a lock for the length of a transaction and waits out a short
+one, so two sessions can no longer corrupt each other's state the way two writers of
+the same file could; the later write still wins, which is the honest limit of that
+guarantee. The single-instance mutex stays session-scoped on purpose: making it
+machine-wide would leave a session the user is actually sitting in with no widgets.
 
-The config file is written atomically (temporary file, then swap), so an
-interrupted write cannot leave a half-written layout behind. A file that cannot
-be parsed is moved aside as `config.corrupt-<timestamp>.json` rather than
-deleted.
+**Durability.** The database runs in write-ahead logging and flushes every commit to
+the disk before reporting it done, so a commit that returned survives a crash or a
+power loss, and an interrupted write cannot leave a half-written layout behind — SQLite
+rolls the transaction back.
+
+**Coming from the JSON layout.** The old files are read once, into a database that does
+not exist yet, and are then left exactly as they are: not deleted, not renamed. Which
+of them is read is decided in this order:
+
+1. `settings.json` and `widgets\*.json`, if either is present,
+2. otherwise `config.json`, the single file everything used to be in,
+3. otherwise `config.pre-split-backup.json`, where a build that split that file had
+   moved it.
+
+A widget file that cannot be parsed is skipped and the rest are still imported: one
+damaged file used to cost one widget, and it must not now cost the layout. The import is
+idempotent — it runs only while the database holds neither preferences nor widgets — so
+a first run that was interrupted is finished on the next one.
+
+Because the old files are never removed, a build from before this change still finds its
+layout where it left it. What it will not see is anything done afterwards: from here on
+the database is the only thing written.
+
+### Widget settings
+
+A widget's own configuration is an opaque dictionary to the shell, which is what lets
+a widget change what it persists without the shell changing at all. The cost lands on
+the day the shape changes, so each widget declares the version of its own settings and
+the steps that bring older ones forward:
+
+```csharp
+public sealed class QuickLaunchWidgetProvider : IWidgetProvider, IWidgetSettingsMigrations
+{
+    public int SettingsVersion => 2;
+
+    public IReadOnlyList<WidgetSettingsMigration> Migrations { get; } =
+    [
+        new(1, settings => /* the shortcut list, rewritten in the file's own naming */),
+    ];
+}
+```
+
+The shell keeps that number in the widget's file and runs the steps in order without
+looking inside them. Three rules make that safe: the whole chain is checked before any
+step runs, because a step that has already rewritten the settings cannot be undone; a
+missing step leaves the version alone, so the next start tries again rather than
+believing a migration that never happened; and settings written by a newer build are
+left exactly as they are.
+
+Nested objects inside a widget's settings are written with the same naming as the rest
+of the file, and read back case-insensitively, so a file written before that was
+settled still loads. `WidgetSettings.Get`/`Set` are reflection based — they are open
+generics, so no source-generated contract can be closed over them — which is why
+trimming and AOT stay off until a widget can hand its settings type over as a
+`JsonTypeInfo`.
 
 Positions are stored in **physical** pixels and sizes in **logical** pixels,
 because that is what the window manager and the layout system each report.
@@ -484,6 +600,9 @@ displays.
 3. Add its name and description to both `Resources/Strings.json` files under
    `Widget`, add the matching constants and mappings to `WidgetText`, and point the
    descriptor at them.
+4. When the shape of the widget's own settings changes later, implement
+   `IWidgetSettingsMigrations` on the provider and add a step — see
+   [Widget settings](#widget-settings).
 
 The shell only knows about `IWidgetProvider`, so a future plugin loader can add
 providers from separate assemblies without changing the shell.

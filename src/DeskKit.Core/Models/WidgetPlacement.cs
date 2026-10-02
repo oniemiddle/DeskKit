@@ -33,6 +33,14 @@ public sealed record WidgetPlacement
     /// <summary>Height in logical pixels.</summary>
     public double Height { get; init; }
 
+    /// <summary>
+    /// Which shape this widget's own <see cref="Settings"/> are in. The shell
+    /// carries the number through without ever interpreting it; the widget it
+    /// belongs to is what brings its settings forward. See
+    /// <c>IWidgetSettingsMigrations</c>.
+    /// </summary>
+    public int SettingsVersion { get; init; } = 1;
+
     /// <summary>Widget specific configuration, owned by the widget itself.</summary>
     public Dictionary<string, JsonElement> Settings { get; init; } = [];
 }

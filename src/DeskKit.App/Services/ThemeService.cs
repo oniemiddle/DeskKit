@@ -53,4 +53,32 @@ public sealed class ThemeService
 
         return Application.Current?.ActualThemeVariant == ThemeVariant.Dark ? DarkCard : LightCard;
     }
+
+    /// <summary>
+    /// The surface for something that floats over the desktop rather than sitting on
+    /// a material — a notice, say.
+    /// </summary>
+    /// <remarks>
+    /// Not <see cref="CardBrush"/>, which paints nothing when the material fills the
+    /// window: there is no material behind a notice, so a transparent surface would
+    /// leave the text sitting directly on the wallpaper with nothing holding it.
+    /// </remarks>
+    public static IBrush FloatingSurface =>
+        Application.Current?.ActualThemeVariant == ThemeVariant.Dark ? DarkCard : LightCard;
+
+    /// <summary>
+    /// The outline of a floating notice, which has to stay legible over a wallpaper
+    /// of any colour.
+    /// </summary>
+    /// <remarks>
+    /// Brighter than a card's outline needs to be. A widget card sits inside its own
+    /// window, so its edge only has to separate it from that; a notice floats over
+    /// whatever is behind it, and the card surface alone can land within a few percent
+    /// of a wallpaper of a similar lightness — not enough for something the user is
+    /// meant to notice.
+    /// </remarks>
+    public static IBrush NoticeBorderBrush =>
+        Application.Current?.ActualThemeVariant == ThemeVariant.Dark
+            ? new SolidColorBrush(Color.Parse("#59FFFFFF"))
+            : new SolidColorBrush(Color.Parse("#26000000"));
 }

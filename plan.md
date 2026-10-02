@@ -1302,6 +1302,35 @@ widget 名称本地化                      →   App/WidgetCatalog（Product）
 | 24.5 红线 | ① 任何一步都未让自检 FAIL（每次提交前都跑）；② `WidgetWindow` public 从 51 → 19 后未回涨（本轮新增的菜单读取是 `internal`）；③ Core 无 EF，Runtime 无 Widgets/Persistence/App；④ Core 不再出现任何 Win32 符号（`DesktopLayerOptions.PreventActivation` 的说明改为描述行为，不再点名平台样式） |
 
 **尚未由自动化覆盖、已在文档中如实标注的两点**：托盘图标操作无法在自检中断言（Product UI），改为实机启动验证（真实 DI 下运行 10 秒、stderr/stdout 为空、日志无启动失败、无残留进程）；§24.3 ④ 见上。
+
+### 24.7 Post-refactor audit（最终只读审计，commit `a5cb6e2`）
+
+| 检查项 | 实际结果 |
+| --- | --- |
+| 依赖边（`dotnet list reference`） | Core → 无；Runtime/Persistence/Platform/Widgets → Core；App → 五个全部。与 §16 目标图逐条一致 |
+| 最终验证 ① build | `dotnet build DeskKit.slnx -c Release --no-incremental` → **0 警告 / 0 错误**（40.39s，SDK `11.0.100-rc.1.26425.128`） |
+| 最终验证 ② test | `dotnet test DeskKit.slnx -c Release` → **260 通过 / 0 失败**（Core 164、Platform 40、Runtime 17、Persistence 26、App 13） |
+| 最终验证 ③ selftest | `--selftest --out artifacts/selftest-report.txt` → 退出码 **0**、报告 **0 处 FAIL**、**PASS (214 checks)**、第 1–22 节全部存在（历史 artifact 为 21 节 / 203 PASS，仅作对照，不是本轮结果） |
+| 代码卫生 | 无残留旧命名空间；`TODO`/`FIXME`/`HACK`/`NotImplementedException` 全仓库为空；无 `AssemblyLoadContext`/DLL loader、无 MediatR/CQRS/EventBus、无 Generic Repository/UoW |
+| 工作树 | `git status --porcelain` 为空；HEAD `a5cb6e2`；仓库共 42 次提交，P1→P6 阶段提交连续可回溯（**P0 没有提交，是设计如此**：该阶段只执行三项命令并记录基线） |
+| 文档一致性 | `plan.md` / `docs/architecture.md` / `README.md` 与代码一致；本轮修正 3 处记录级不一致（见下），**未改生产代码** |
+
+**本轮修正的记录级不一致（纯文档）**
+
+1. `ShellEnvironment` 在 P4-3 / P4-4 记录中写作 `internal`，实际是 `public`——公开的 `WidgetShell` 构造函数必须接受它。
+2. P4-4 设计表把 `INoticePresenter` 列为 `WidgetShell` 的构造依赖；实际**不在**（存储告警由组合根从 `LoadReport` 展示，即本节差异 ①）。
+3. `docs/architecture.md`：把“去抖动写入”的主语由 “the shell” 改为 `WorkspaceState`；并把 O-6（第三方 widget id 命名规则）登记进插件策略清单第 1 条。
+
+**已知但本轮刻意不修（非架构问题，记录备查）**
+
+| 项 | 位置 | 影响 | 建议 |
+| --- | --- | --- | --- |
+| 视图仍自行判断平台 | `src/DeskKit.App/Views/NoticeWindow.cs:104` 用 `OperatingSystem.IsWindows()`，而非 `_styler.IsSupported` | `INotificationWindowStyler.IsSupported`（`src/DeskKit.Platform/INotificationWindowStyler.cs:19`）无任何消费者；与 `docs/architecture.md` “不在视图/控件里加 `OperatingSystem.Is…` 分支”的说法不一致 | 改为判断该端口即可（一行）；改后需重跑 build/test/selftest |
+| 9 处未使用的 `using DeskKit.Runtime…;`（P4 批量改命名空间遗留） | `src/DeskKit.App/Diagnostics/DesktopLayerSelfTest.{Desktop,Storage}.cs`、`src/DeskKit.App/Shell/{AutoStartController,DefaultLayout,ShellAssets,StorageNoticePresenter,WidgetContextMenuFactory}.cs`、`tests/DeskKit.App.Tests/AutoStartControllerTests.cs` | 编译无影响（构建 0 警告，当前无 IDE0005 门禁） | 随下一次功能改动顺手清理，不必单独立项 |
+| 3 处注释仍把文本/图标解析写成 “the shell” 的职责 | `src/DeskKit.Core/Models/WidgetDescriptor.cs:8`、`src/DeskKit.Widgets/Clock/ClockWidgetProvider.cs:15`、`src/DeskKit.App/Shell/ShellAssets.cs:8` | 与 P4-4 后的实际归属（Product 的 `WidgetCatalog` / `ShellAssets`）不符 | 纯注释，下次接触这三个文件时改正 |
+
+**结论**：P0–P6 重构在本轮审计后停止。后续在该基线上做正常功能开发；上表三项是记录项，不构成新的重构轮次。
+
 ## 附：证据索引
 
 | 结论 | 证据 |

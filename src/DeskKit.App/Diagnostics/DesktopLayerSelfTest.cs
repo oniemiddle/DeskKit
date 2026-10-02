@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
 using DeskKit.Core;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Data;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
@@ -270,7 +271,8 @@ internal sealed partial class DesktopLayerSelfTest
         WidgetRegistry? registry = null,
         IDesktopLayerService? desktopLayer = null,
         INoticePresenter? notices = null,
-        LanguageService? language = null) =>
+        LanguageService? language = null,
+        IWidgetMessageBus? messages = null) =>
         new(
             store ?? new StateStore(Path.Combine(directory, AppPaths.DatabaseFileName), directory),
             registry ?? BuiltInRegistry(),
@@ -281,6 +283,7 @@ internal sealed partial class DesktopLayerSelfTest
             new NullWindowMaterialService(),
             language ?? new LanguageService(),
             notices ?? NullNoticePresenter.Instance,
+            messages ?? new WidgetMessageBus(),
             NullLogger<WidgetShell>.Instance);
 
     /// <summary>

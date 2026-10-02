@@ -10,7 +10,6 @@ using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
 using DeskKit.Platform;
-using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -147,6 +146,7 @@ public partial class App : Application
         });
 
         services.AddSingleton<StateStore>();
+        services.AddSingleton<IWidgetMessageBus, WidgetMessageBus>();
         services.AddSingleton<TickService>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<INoticePresenter, NoticePresenter>();
@@ -155,36 +155,13 @@ public partial class App : Application
         // widgets' resource managers, and two of them would fight over the culture.
         services.AddSingleton<LanguageService>();
 
-        services.AddSingleton<IDesktopLayerService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsDesktopLayerService()
-                : new NullDesktopLayerService());
+        services.AddDeskKitPlatform();
 
-        services.AddSingleton<IWindowMaterialService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsWindowMaterialService()
-                : new NullWindowMaterialService());
-
-        services.AddSingleton<IAutoStartService>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsAutoStartService()
-                : new NullAutoStartService());
-
-        services.AddSingleton<IShellIconLoader>(_ =>
-            OperatingSystem.IsWindows()
-                ? new WindowsShellIconLoader()
-                : new NullShellIconLoader());
-
+        // The shell only sees the contract. Built-ins and future plugins both add
+        // providers through DI, and the registry checks duplicate IDs at startup.
+        services.AddBuiltInWidgets();
         services.AddSingleton(provider =>
-        {
-            var registry = new WidgetRegistry();
-            var iconLoader = provider.GetRequiredService<IShellIconLoader>();
-
-            foreach (var widgetProvider in BuiltInWidgets.CreateProviders(iconLoader))
-                registry.Register(widgetProvider);
-
-            return registry;
-        });
+            new WidgetRegistry(provider.GetServices<IWidgetProvider>()));
 
         services.AddSingleton<WidgetShell>();
 

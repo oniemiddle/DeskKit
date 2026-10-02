@@ -18,6 +18,31 @@ Three widgets ship in the box:
 The interface is available in **English and Simplified Chinese**, and follows the
 system language until you pick one.
 
+## Widget extension model
+
+The shell depends only on `IWidgetProvider`. Providers are registered with
+Microsoft.Extensions.DependencyInjection, and `WidgetRegistry` turns that ordered
+set into the catalogue shown by the UI. Built-in widgets use
+`services.AddBuiltInWidgets()`; an extension can register its own
+`IWidgetProvider` in the same composition root. A duplicate widget ID now fails
+at startup instead of silently choosing one provider, which makes plugin
+configuration errors actionable.
+
+Widgets communicate through typed, in-process messages exposed by
+`IWidgetHost.Messages`; message contracts contain data only, and subscriptions
+are disposed with the widget view model. See [the architecture guide](docs/architecture.md)
+for module ownership, platform capability boundaries, persistence rules and the
+theme/UI model.
+
+This is intentionally **composition-time extensibility**, not yet arbitrary DLL
+loading. Loading assemblies from a plugin directory needs an explicit isolation,
+dependency-resolution, versioning, and trust policy; adding that before defining
+those policies would make the app less predictable. When that host is introduced,
+[`McMaster.NETCore.Plugins`](https://github.com/natemcmaster/DotNetCorePlugins)
+is a good candidate to replace custom `AssemblyLoadContext` and dependency-probing
+code. It should be isolated behind an `IWidgetProvider` discovery service, leaving
+the widget shell and registry unchanged.
+
 ## Status
 
 The desktop-layer mechanism, the shell and all three widgets are implemented and

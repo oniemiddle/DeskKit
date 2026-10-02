@@ -14,6 +14,8 @@ using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Extensions.Logging;
 
 namespace DeskKit.App;
 
@@ -126,7 +128,22 @@ public partial class App : Application
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(LogLevel.Information);
-            builder.AddProvider(new FileLoggerProvider(AppPaths.LogDirectory));
+
+            // Named so the file for a day is still the one a person looking for it
+            // would guess — the date is appended where the dot would go — and shared so a
+            // second process can read it while this one has it open, which is the whole
+            // point of a log on a desktop tool that runs for days.
+            builder.AddSerilog(
+                new LoggerConfiguration()
+                    .MinimumLevel.Information()
+                    .WriteTo.File(
+                        Path.Combine(AppPaths.LogDirectory, "deskkit-.log"),
+                        rollingInterval: RollingInterval.Day,
+                        shared: true,
+                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} "
+                                        + "[{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+                    .CreateLogger(),
+                dispose: true);
         });
 
         services.AddSingleton<StateStore>();

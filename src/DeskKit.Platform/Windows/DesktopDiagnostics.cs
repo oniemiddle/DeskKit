@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using Avalonia;
 using DeskKit.Platform.Interop;
 
@@ -9,7 +8,7 @@ namespace DeskKit.Platform.Windows;
 public sealed record WindowInfo(
     IntPtr Handle, string ClassName, string Title, bool IsVisible, bool IsMinimized, PixelRect Rect)
 {
-    public bool HasSize => Rect.Width > 0 && Rect.Height > 0;
+    public bool HasSize => Rect is { Width: > 0, Height: > 0 };
 }
 
 /// <summary>
@@ -275,20 +274,14 @@ public static class DesktopDiagnostics
 
     private static WindowInfo Describe(IntPtr hwnd)
     {
-        var className = new StringBuilder(256);
-        NativeMethods.GetClassName(hwnd, className, className.Capacity);
-
-        var title = new StringBuilder(256);
-        NativeMethods.GetWindowText(hwnd, title, title.Capacity);
-
         var rect = NativeMethods.GetWindowRect(hwnd, out var nativeRect)
             ? new PixelRect(nativeRect.Left, nativeRect.Top, nativeRect.Width, nativeRect.Height)
             : default;
 
         return new WindowInfo(
             hwnd,
-            className.ToString(),
-            title.ToString(),
+            NativeMethods.ClassNameOf(hwnd),
+            NativeMethods.WindowTextOf(hwnd),
             NativeMethods.IsWindowVisible(hwnd),
             NativeMethods.IsIconic(hwnd),
             rect);

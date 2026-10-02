@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace DeskKit.Platform.Interop;
 
@@ -7,7 +6,16 @@ namespace DeskKit.Platform.Interop;
 /// Native entry points used by the desktop layer. All members are Windows-only;
 /// callers must guard with <see cref="OperatingSystem.IsWindows"/>.
 /// </summary>
-internal static class NativeMethods
+/// <remarks>
+/// Declared with <see cref="LibraryImportAttribute"/> rather than
+/// <see cref="DllImportAttribute"/>, so the marshalling — the part that is easy to get
+/// wrong and silent when it is — is generated at compile time instead of written by
+/// hand. The trade is that a few signatures cannot be expressed: a <c>bool</c> has to
+/// say which width of BOOL it means, strings have to name the W entry point, and the
+/// two calls that fill a caller's buffer take a span rather than a
+/// <see cref="System.Text.StringBuilder"/>.
+/// </remarks>
+internal static partial class NativeMethods
 {
     // Window style access. GetWindowLongPtrW/SetWindowLongPtrW only exist in the
     // 64-bit user32, so on a 32-bit process we must use the 32-bit variants.
@@ -23,111 +31,152 @@ internal static class NativeMethods
             ? SetWindowLongPtr64(hWnd, nIndex, value)
             : new IntPtr(SetWindowLong32(hWnd, nIndex, value.ToInt32()));
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
-    private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static partial IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
-    private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static partial IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
-    private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    private static partial int GetWindowLong32(IntPtr hWnd, int nIndex);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
-    private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    private static partial int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool SetWindowPos(
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetWindowPos(
         IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
-    [DllImport("user32.dll")]
-    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    [DllImport("user32.dll")]
-    internal static extern bool IsWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern bool IsWindowVisible(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindowVisible(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern bool IsIconic(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsIconic(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern bool IsZoomed(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsZoomed(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern IntPtr GetForegroundWindow();
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetForegroundWindow();
 
-    [DllImport("user32.dll")]
-    internal static extern IntPtr GetTopWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetTopWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    internal static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW", SetLastError = true)]
+    private static unsafe partial int GetClassName(IntPtr hWnd, char* lpClassName, int nMaxCount);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    internal static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW", SetLastError = true)]
+    private static unsafe partial int GetWindowText(IntPtr hWnd, char* lpString, int nMaxCount);
 
-    [DllImport("user32.dll")]
-    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    /// <summary>The window's class name, or an empty string when it cannot be read.</summary>
+    internal static unsafe string ClassNameOf(IntPtr hWnd)
+    {
+        const int Length = 256;
+        var buffer = stackalloc char[Length];
+        var written = GetClassName(hWnd, buffer, Length);
 
-    [DllImport("user32.dll")]
-    internal static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+        return written > 0 ? new string(buffer, 0, Math.Min(written, Length)) : string.Empty;
+    }
 
-    [DllImport("user32.dll")]
-    internal static extern int GetSystemMetrics(int nIndex);
+    /// <summary>The window's title, or an empty string when it cannot be read.</summary>
+    internal static unsafe string WindowTextOf(IntPtr hWnd)
+    {
+        const int Length = 256;
+        var buffer = stackalloc char[Length];
+        var written = GetWindowText(hWnd, buffer, Length);
+
+        return written > 0 ? new string(buffer, 0, Math.Min(written, Length)) : string.Empty;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    /// <summary>
+    /// Sends a message. Named <c>SendMessageW</c> rather than the macro name: there is
+    /// no <c>SendMessage</c> export, and a source-generated declaration does not get
+    /// the A/W suffix appended for it the way a hand-written one did.
+    /// </summary>
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    internal static partial IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [LibraryImport("user32.dll")]
+    internal static partial int GetSystemMetrics(int nIndex);
 
     /// <summary>
     /// Registers the calling window to receive shell hook notifications
     /// (WM_SHELLHOOK). Not declared in modern SDK headers; still exported by
     /// user32 on Windows 10/11. A failure here is non-fatal.
     /// </summary>
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool RegisterShellHookWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool RegisterShellHookWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool DeregisterShellHookWindow(IntPtr hWnd);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeregisterShellHookWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern uint RegisterWindowMessage(string lpString);
+    [LibraryImport("user32.dll", EntryPoint = "RegisterWindowMessageW", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial uint RegisterWindowMessage(string lpString);
 
-    [DllImport("user32.dll")]
-    internal static extern IntPtr GetDC(IntPtr hWnd);
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetDC(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    internal static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    [LibraryImport("user32.dll")]
+    internal static partial int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
-    [DllImport("gdi32.dll")]
-    internal static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateCompatibleDC(IntPtr hdc);
 
-    [DllImport("gdi32.dll")]
-    internal static extern bool DeleteDC(IntPtr hdc);
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteDC(IntPtr hdc);
 
-    [DllImport("gdi32.dll")]
-    internal static extern IntPtr SelectObject(IntPtr hdc, IntPtr hObject);
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr SelectObject(IntPtr hdc, IntPtr hObject);
 
-    [DllImport("gdi32.dll")]
-    internal static extern bool DeleteObject(IntPtr hObject);
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteObject(IntPtr hObject);
 
-    [DllImport("gdi32.dll")]
-    internal static extern bool BitBlt(
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool BitBlt(
         IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
         IntPtr hdcSrc, int xSrc, int ySrc, int rop);
 
-    [DllImport("gdi32.dll", EntryPoint = "CreateDIBSection", SetLastError = true)]
-    internal static extern IntPtr CreateDIBSection(
+    [LibraryImport("gdi32.dll", EntryPoint = "CreateDIBSection", SetLastError = true)]
+    internal static partial IntPtr CreateDIBSection(
         IntPtr hdc, ref BITMAPINFO pbmi, uint usage, out IntPtr ppvBits, IntPtr hSection, uint offset);
 
-    [DllImport("shell32.dll", EntryPoint = "SHGetFileInfoW", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern IntPtr SHGetFileInfo(
+    [LibraryImport("shell32.dll", EntryPoint = "SHGetFileInfoW", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial IntPtr SHGetFileInfo(
         string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool DestroyIcon(IntPtr hIcon);
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DestroyIcon(IntPtr hIcon);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern bool DrawIconEx(
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DrawIconEx(
         IntPtr hdc, int xLeft, int yTop, IntPtr hIcon, int cxWidth, int cyHeight,
         uint istepIfAniCur, IntPtr hbrFlickerFreeDraw, uint diFlags);
 
@@ -138,27 +187,23 @@ internal static class NativeMethods
     /// not understood, which is how a Windows version that predates it reports
     /// itself, so callers must check the result rather than assume success.
     /// </summary>
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    internal static extern int DwmSetWindowAttribute(
+    [LibraryImport("dwmapi.dll")]
+    internal static partial int DwmSetWindowAttribute(
         IntPtr hwnd, int attribute, ref int value, int size);
 
     /// <summary>Reads a window attribute back; used to confirm a backdrop took effect.</summary>
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    internal static extern int DwmGetWindowAttribute(
+    [LibraryImport("dwmapi.dll")]
+    internal static partial int DwmGetWindowAttribute(
         IntPtr hwnd, int attribute, out int value, int size);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    internal struct SHFILEINFO
+    internal unsafe struct SHFILEINFO
     {
         public IntPtr hIcon;
         public int iIcon;
         public uint dwAttributes;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-        public string szDisplayName;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
-        public string szTypeName;
+        public fixed char szDisplayName[260];
+        public fixed char szTypeName[80];
     }
 
     [StructLayout(LayoutKind.Sequential)]

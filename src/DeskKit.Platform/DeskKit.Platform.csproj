@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- The interop declarations use character buffers for the structures the shell
+         fills in, and LibraryImport's generated stubs are compiled unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
   </ItemGroup>

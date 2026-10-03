@@ -213,7 +213,7 @@ public sealed class WidgetShell : IWidgetHost, IShellFacade, IDisposable
     public void SetWidgetsVisible(bool visible)
     {
         _workspace.ReplaceSettings(State.Settings with { WidgetsVisible = visible });
-        _runtimes.SetVisible(visible);
+        _runtimes.SetVisible(visible, Screens);
         _workspace.RaiseChanged();
     }
 

@@ -2,6 +2,8 @@
 using DeskKit.Persistence.Data;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace DeskKit.Persistence.Tests;
 
@@ -44,15 +46,23 @@ public sealed class MigrationCompatibilityTests : IDisposable
     }
 
     [Fact]
-    public void TheMigrationIdDoesNotCarryItsNamespace()
+    public void TheMigrationIdsDoNotCarryTheirNamespace()
     {
         using var context = new DeskKitDbContext(DatabaseOptions.For(DatabasePath));
 
-        var migration = Assert.Single(context.Database.GetMigrations());
+        var migrations = context.Database.GetMigrations().ToList();
 
-        Assert.Equal(InitialCreateId, migration);
-        Assert.DoesNotContain("DeskKit.", migration, StringComparison.Ordinal);
-        Assert.DoesNotContain("Core", migration, StringComparison.Ordinal);
+        // A database written by an earlier build recorded exactly this id, namespace
+        // and all, so this one must still be among the ids this build understands.
+        Assert.Contains(InitialCreateId, migrations);
+
+        // Every id, not just the first: a migration added later has to keep the same
+        // property, or a database written by an earlier build stops being recognised.
+        foreach (var migration in migrations)
+        {
+            Assert.DoesNotContain("DeskKit.", migration, StringComparison.Ordinal);
+            Assert.DoesNotContain("Core", migration, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -71,21 +81,25 @@ public sealed class MigrationCompatibilityTests : IDisposable
     }
 
     [Fact]
-    public void ADatabaseWrittenByAnEarlierBuildIsStillRecognisedAsFullyMigrated()
+    public void ADatabaseWrittenByAnEarlierBuildIsBroughtUpToDateRatherThanRefused()
     {
-        // An earlier build recorded exactly this id, namespace and all - and the id is
-        // all that is recorded, so this is the whole of what a database says about
-        // where it came from.
-        WriteOnlyTheHistoryRowAnEarlierBuildWouldHaveWritten();
+        // The database as the build that only knew the first migration left it: a real
+        // file, with the real schema and the real history row for that one migration,
+        // which is the whole of what a database says about where it came from. A
+        // migration added since is one this build is expected to apply, which is a
+        // different thing from a file it does not understand.
+        using (var context = new DeskKitDbContext(DatabaseOptions.For(DatabasePath)))
+            context.Database.GetService<IMigrator>().Migrate(InitialCreateId);
 
-        var loadReport = new StateStore(DatabasePath).LoadReport;
+        var store = new StateStore(DatabasePath);
+        store.Load();
 
-        Assert.NotEqual(StoreOutcome.NewerSchema, loadReport.Outcome);
-        Assert.NotEqual(StoreOutcome.Unavailable, loadReport.Outcome);
-        Assert.False(loadReport.IsReadOnly);
+        Assert.NotEqual(StoreOutcome.NewerSchema, store.LoadReport.Outcome);
+        Assert.NotEqual(StoreOutcome.Unavailable, store.LoadReport.Outcome);
+        Assert.False(store.LoadReport.IsReadOnly);
 
-        using var context = new DeskKitDbContext(DatabaseOptions.For(DatabasePath));
-        Assert.Empty(context.Database.GetPendingMigrations());
+        using var reloaded = new DeskKitDbContext(DatabaseOptions.For(DatabasePath));
+        Assert.Empty(reloaded.Database.GetPendingMigrations());
     }
 
     [Fact]
@@ -101,8 +115,6 @@ public sealed class MigrationCompatibilityTests : IDisposable
         Assert.Equal(StoreOutcome.NewerSchema, store.LoadReport.Outcome);
         Assert.True(store.LoadReport.IsReadOnly);
     }
-
-    private void WriteOnlyTheHistoryRowAnEarlierBuildWouldHaveWritten() => WriteHistoryRow(InitialCreateId);
 
     private void WriteHistoryRow(string migrationId)
     {

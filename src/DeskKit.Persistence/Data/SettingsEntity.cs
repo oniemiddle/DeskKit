@@ -28,4 +28,14 @@ public sealed class SettingsEntity
     public bool ShowTrayIcon { get; set; } = true;
 
     public bool WidgetsVisible { get; set; } = true;
+
+    public bool DesktopDoubleClickTogglesWidgets { get; set; }
+
+    public string WidgetsAnimation { get; set; } = WidgetAnimationSetting.Slide;
+
+    public string WidgetAnimationSpeed { get; set; } = WidgetAnimationSpeedSetting.Standard;
+
+    public string WidgetAnimationDirection { get; set; } = WidgetAnimationDirectionSetting.Right;
+
+    public string WidgetAnimationEasing { get; set; } = WidgetAnimationEasingSetting.Standard;
 }

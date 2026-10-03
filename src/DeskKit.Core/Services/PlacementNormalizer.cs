@@ -49,8 +49,19 @@ public static class PlacementNormalizer
     /// Picks the screen whose centre is closest to the widget, so a widget that
     /// lived on the right-hand monitor does not jump to the left one.
     /// </summary>
-    private static ScreenBounds FindNearestScreen(WidgetPlacement placement, IReadOnlyList<ScreenBounds> screens)
+    private static ScreenBounds FindNearestScreen(WidgetPlacement placement, IReadOnlyList<ScreenBounds> screens) =>
+        FindNearestScreen(placement.X, placement.Y, screens);
+
+    /// <summary>
+    /// The screen a point belongs to, or the one nearest to it when it belongs to
+    /// none. The monitor a widget is on decides which edge it slides off, so the
+    /// answer has to be the same rule placement uses.
+    /// </summary>
+    public static ScreenBounds FindNearestScreen(int x, int y, IReadOnlyList<ScreenBounds> screens)
     {
+        ArgumentNullException.ThrowIfNull(screens);
+        ArgumentOutOfRangeException.ThrowIfZero(screens.Count);
+
         var best = screens[0];
         var bestDistance = double.MaxValue;
 
@@ -58,8 +69,8 @@ public static class PlacementNormalizer
         {
             var centreX = screen.X + (screen.Width / 2.0);
             var centreY = screen.Y + (screen.Height / 2.0);
-            var dx = centreX - placement.X;
-            var dy = centreY - placement.Y;
+            var dx = centreX - x;
+            var dy = centreY - y;
             var distance = (dx * dx) + (dy * dy);
 
             if (distance < bestDistance)

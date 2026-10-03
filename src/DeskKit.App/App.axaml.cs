@@ -7,7 +7,6 @@ using DeskKit.App.Diagnostics;
 using DeskKit.App.Shell;
 using DeskKit.App.Services;
 using DeskKit.App.Views;
-using DeskKit.Core;
 using DeskKit.Core.Abstractions;
 using DeskKit.Core.Services;
 using DeskKit.Persistence;
@@ -16,7 +15,6 @@ using DeskKit.Widgets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Serilog.Extensions.Logging;
 using DeskKit.Runtime;
 
 namespace DeskKit.App;
@@ -28,6 +26,7 @@ public partial class App : Application
     private TrayIconController? _tray;
     private SettingsWindowController? _settings;
     private WidgetContextMenuFactory? _menu;
+    private DesktopGestureController? _gestures;
 
     /// <summary>Held for the lifetime of the process, so one instance owns the database.</summary>
     private SingleInstanceGuard? _instanceGuard;
@@ -111,6 +110,13 @@ public partial class App : Application
 
         _menu = new WidgetContextMenuFactory();
 
+        // The gesture the desktop itself offers is the product's command, so it is the
+        // product that answers it. The runtime never sees a mouse.
+        _gestures = new DesktopGestureController(
+            _shell,
+            _services.GetRequiredService<IDesktopGestureService>(),
+            _services.GetRequiredService<ILogger<DesktopGestureController>>());
+
         // The menu belongs to a widget's window, which the runtime owns, so the runtime
         // says a widget appeared and the product hangs its menu on it.
         _shell.WidgetAdded += (_, runtime) => runtime.Window.SetContextMenu(
@@ -124,6 +130,7 @@ public partial class App : Application
 
         desktop.Exit += (_, _) =>
         {
+            _gestures?.Dispose();
             _tray?.Dispose();
             _shell?.Dispose();
             _services?.Dispose();
@@ -135,7 +142,10 @@ public partial class App : Application
             _shell.Start();
 
             // Nothing is shown for a first run or a migration: the state is what it is
-            // by the time Start returns.
+            // by the time Start returns. The gesture follows the state that was loaded,
+            // so it can only be answered after that.
+            _gestures.Start();
+
             ReconcileAutoStart();
 
             _tray.Show();

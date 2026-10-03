@@ -229,6 +229,11 @@ public sealed class StateStore : IStateStore
                     StartWithWindows = settings.StartWithWindows,
                     ShowTrayIcon = settings.ShowTrayIcon,
                     WidgetsVisible = settings.WidgetsVisible,
+                    DesktopDoubleClickTogglesWidgets = settings.DesktopDoubleClickTogglesWidgets,
+                    WidgetsAnimation = settings.WidgetsAnimation,
+                    WidgetAnimationSpeed = settings.WidgetAnimationSpeed,
+                    WidgetAnimationDirection = settings.WidgetAnimationDirection,
+                    WidgetAnimationEasing = settings.WidgetAnimationEasing,
                 },
             Widgets = widgets,
         }, problems);
@@ -273,6 +278,11 @@ public sealed class StateStore : IStateStore
         settings.StartWithWindows = state.Settings.StartWithWindows;
         settings.ShowTrayIcon = state.Settings.ShowTrayIcon;
         settings.WidgetsVisible = state.Settings.WidgetsVisible;
+        settings.DesktopDoubleClickTogglesWidgets = state.Settings.DesktopDoubleClickTogglesWidgets;
+        settings.WidgetsAnimation = state.Settings.WidgetsAnimation;
+        settings.WidgetAnimationSpeed = state.Settings.WidgetAnimationSpeed;
+        settings.WidgetAnimationDirection = state.Settings.WidgetAnimationDirection;
+        settings.WidgetAnimationEasing = state.Settings.WidgetAnimationEasing;
 
         var rows = context.Widgets.ToDictionary(row => row.InstanceId, StringComparer.Ordinal);
         var kept = new HashSet<string>(StringComparer.Ordinal);

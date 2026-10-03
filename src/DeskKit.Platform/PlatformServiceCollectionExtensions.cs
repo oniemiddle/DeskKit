@@ -25,12 +25,14 @@ public static class PlatformServiceCollectionExtensions
 #if WINDOWS
         services.AddSingleton<IDesktopLayerService, WindowsDesktopLayerService>();
         services.AddSingleton<IWindowMaterialService, WindowsWindowMaterialService>();
+        services.AddSingleton<IDesktopGestureService, WindowsDesktopGestureService>();
         services.AddSingleton<IAutoStartService, WindowsAutoStartService>();
         services.AddSingleton<IShellIconLoader, WindowsShellIconLoader>();
         services.AddSingleton<INotificationWindowStyler, WindowsNotificationWindowStyler>();
 #else
         services.AddSingleton<IDesktopLayerService, NullDesktopLayerService>();
         services.AddSingleton<IWindowMaterialService, NullWindowMaterialService>();
+        services.AddSingleton<IDesktopGestureService, NullDesktopGestureService>();
         services.AddSingleton<IAutoStartService, NullAutoStartService>();
         services.AddSingleton<IShellIconLoader, NullShellIconLoader>();
         services.AddSingleton<INotificationWindowStyler>(NullNotificationWindowStyler.Instance);

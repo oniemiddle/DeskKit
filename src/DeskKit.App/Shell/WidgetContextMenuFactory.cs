@@ -1,9 +1,6 @@
 ﻿using Avalonia.Controls;
 using DeskKit.App.Localization;
-using DeskKit.App.Services;
 using DeskKit.Core;
-using DeskKit.Core.Models;
-using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 

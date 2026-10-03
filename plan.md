@@ -295,7 +295,7 @@ Platform.Tests   → Core, Platform
 
 | 表 | 行 | 内容 |
 | --- | --- | --- |
-| `Settings` | 单行（`SingletonId=1`） | Theme / Language / StartWithWindows / ShowTrayIcon / WidgetsVisible |
+| `Settings` | 单行（`SingletonId=1`） | Theme / Language / StartWithWindows / ShowTrayIcon / WidgetsVisible / DesktopDoubleClickTogglesWidgets / WidgetsAnimation / WidgetAnimationSpeed / WidgetAnimationDirection / WidgetAnimationEasing |
 | `Widgets` | 每实例一行 | `InstanceId`(PK) / `Order` / `WidgetId` / `Enabled` / X,Y（物理像素）/ Width,Height（逻辑像素）/ `SettingsVersion` / `SettingsJson`（不透明 JSON） |
 | `Meta` | key/value | 仅 `imported-from`（诊断） |
 
@@ -336,6 +336,7 @@ WidgetPlacement（Runtime 领域记录）  ↕  WidgetEntity（EF Entity）
 | 能力 | 契约位置 | Windows | Null | 纯策略 |
 | --- | --- | --- | --- | --- |
 | 桌面层钉底 | `Platform/IDesktopLayerService.cs` | `Windows/WindowsDesktopLayerService.cs` | `NullDesktopLayerService.cs` | `DesktopLayerPolicy.cs` |
+| 桌面双击手势（后续新增） | `Core/Abstractions/IDesktopGestureService.cs` | `Windows/WindowsDesktopGestureService.cs` | 同文件 | `DesktopBackdropPolicy.cs`、`DesktopDoubleClickDetector.cs` |
 | 窗口材质 | `Platform/IWindowMaterialService.cs` | `Windows/WindowsWindowMaterialService.cs` | `NullWindowMaterialService.cs` | `MaterialPolicy.cs` |
 | 自启动 | `Platform/IAutoStartService.cs` | `Windows/WindowsAutoStartService.cs` | 同文件 | — |
 | Shell 图标 | **`Core/Abstractions/IShellIconLoader.cs`** | `Windows/WindowsShellIconLoader.cs` | 同文件 | — |
@@ -352,6 +353,8 @@ WidgetPlacement（Runtime 领域记录）  ↕  WidgetEntity（EF Entity）
 | `MaterialPolicy.FillsWindow` | `WidgetMaterial` 的纯属性，无 OS 知识 | **Core**（作为 `WidgetMaterial` 上的方法） |
 | `MaterialPolicy.Resolve` + Windows build 常量 | 编码 Windows 版本策略（22621/22000） | **留 Platform** |
 | `DesktopLayerPolicy` | WndProc 钉底规则；Runtime 不消费 | **留 Platform** |
+| `IDesktopGestureService` | 产品消费的能力端口（App 把事件变成 `SetWidgetsVisible`，与托盘同一条命令） | **Core** |
+| `DesktopBackdropPolicy` / `DesktopDoubleClickDetector` | 桌面命中判定与双击识别规则；Runtime 不消费 | **留 Platform** |
 | `ScreenBoundsMapper` | Avalonia `Screens` → Core `ScreenBounds` 桥接 | **移到 Runtime** |
 | `IShellIconLoader`(+Null) | **Widgets 消费** | **Core（已如此）** |
 | `IAutoStartService`(+Null) | 产品能力，与 widget 运行无关 | **留 Platform** |
@@ -653,6 +656,7 @@ Product (App)
 | `IShellFacade` | Runtime | `WidgetShell` | `SettingsViewModel`、`TrayIconController` | Product UI 可脱离 Runtime 具体类型测试的能力 |
 | `INoticePresenter` | Core | App `NoticePresenter` | Runtime（`WidgetShell`/`WorkspaceState` 的存储告警）+ Product | **Runtime 使用的 Product capability port**（保持此边界，不再拆分）；删掉会失去无头运行（自检）能力 |
 | `IDesktopLayerService` | Core | Platform（Windows/Null） | Runtime | 运行时能力端口 + OS 选择隔离 |
+| `IDesktopGestureService` | Core | Platform（Windows/Null） | App（`DesktopGestureController`） | 桌面手势与 Win32 隔离；命令仍复用 `IShellFacade.SetWidgetsVisible`（R-8 未破） |
 | `IWindowMaterialService` | Core | Platform（Windows/Null） | Runtime | 同上 |
 | `IShellIconLoader` | Core | Platform（Windows/Null） | Widgets | widget 获取图标而不拖入 Win32 |
 | `INotificationWindowStyler` | Platform | Platform.Windows | App `NoticeWindow` | 消除 UI→Windows 泄漏 |
@@ -776,7 +780,7 @@ Product (App)
 | **D-6** | 平台归属按消费者：Runtime 消费的能力端口（`IDesktopLayerService`、`IWindowMaterialService`、`WidgetMaterial`、`WidgetMaterial.FillsWindow`）进 **Core**；`MaterialPolicy.Resolve`/`DesktopLayerPolicy`/实现留 **Platform**；`IShellIconLoader` 留 Core；`IAutoStartService`/`INotificationWindowStyler` 留 Platform。 |
 | **D-7** | Runtime **不解析面向用户文本**；`WidgetCatalog` 归 App；**不引入** `IWidgetTextResolver`。**O-1 已否决**：`ShellEnvironment` **不含**文本委托；`WidgetWindow.Title` 使用**稳定内部值**（`descriptor.Id`），不做本地化（该标题不可见、且全仓库无人读取）。 |
 | **D-8** | `WorkspaceState` 只拥有 `AppState` + 节流持久化 + `StateChanged`；**不得**含 migration/autostart/window/UI 职责。 |
-| **D-9** | `WidgetRuntimeHost`（实例+生命周期+tick）／`WidgetSurfaceFactory`（表面构造）／`PlacementController`（吸附+写回）／`AppearanceController`（**仅** theme/material 作用于运行中的表面）四分，互相不承担对方职责。**`AppearanceController` 与 `WidgetShell` 均不得引用 `LanguageService`**：语言变更只经 `ShellEnvironment.ApplyLanguage` 委托传入（**唯一**注入到 Runtime 的委托；文本委托已按 O-1 否决）。 |
+| **D-9** | `WidgetRuntimeHost`（实例+生命周期+tick）／`WidgetSurfaceFactory`（表面构造）／`PlacementController`（吸附+写回）／`AppearanceController`（**仅** theme/material 作用于运行中的表面）／`WidgetVisibilityAnimator`（**仅**显示/隐藏时的滑动，纯规则在 Core 的 `WidgetSlideAnimation`）四分，互相不承担对方职责。**`AppearanceController` 与 `WidgetShell` 均不得引用 `LanguageService`**：语言变更只经 `ShellEnvironment.ApplyLanguage` 委托传入（**唯一**注入到 Runtime 的委托；文本委托已按 O-1 否决）。 |
 | **D-10** | Tray / SettingsWindow / Notice 属 **Product**；`SettingsWindow` 不得出现在 Runtime。`INoticePresenter` 的**契约**在 Core，作为 **Runtime 使用的 Product capability port** 保留现状，**不再为“纯洁性”继续拆分**（由 App 提供实现：`NoticePresenter`）。 |
 | **D-11** | `IStateStore` + `StoreOutcome`/`LoadReport`/`SaveReport`/`StoreProblem` + `AppState`/`AppSettings`/`WidgetPlacement`/`WidgetSettings` 属 **Core**；`StateStore`/`DbContext`/`Entities`/`Migrations`/`DatabaseBackup`/`LegacyJsonImport`/`AppPaths` 属 **Persistence**。 |
 | **D-12** | `WidgetPlacement` 是 Runtime 领域记录，**不是** EF Entity；映射（`WidgetPlacement ↕ WidgetEntity`）只发生在 Persistence；Core/Runtime 不得引用数据库实体。 |

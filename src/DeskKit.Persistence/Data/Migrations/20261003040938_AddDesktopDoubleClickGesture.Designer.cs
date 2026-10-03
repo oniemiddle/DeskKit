@@ -2,6 +2,7 @@
 using DeskKit.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -9,9 +10,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DeskKit.Persistence.Data.Migrations
 {
     [DbContext(typeof(DeskKitDbContext))]
-    partial class DeskKitDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003040938_AddDesktopDoubleClickGesture")]
+    partial class AddDesktopDoubleClickGesture
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
@@ -55,22 +58,6 @@ namespace DeskKit.Persistence.Data.Migrations
                     b.Property<string>("Theme")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WidgetAnimationDirection")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WidgetAnimationEasing")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WidgetAnimationSpeed")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("WidgetsAnimation")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("WidgetsVisible")

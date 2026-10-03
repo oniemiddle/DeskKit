@@ -38,6 +38,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             .. LanguageSetting.Offered.Select(offered => new ChoiceOption(offered)),
         ];
 
+        AnimationEffectOptions = [.. WidgetAnimationSetting.Offered.Select(key => new ChoiceOption(key))];
+        AnimationSpeedOptions = [.. WidgetAnimationSpeedSetting.Offered.Select(key => new ChoiceOption(key))];
+        AnimationDirectionOptions = [.. WidgetAnimationDirectionSetting.Offered.Select(key => new ChoiceOption(key))];
+        AnimationEasingOptions = [.. WidgetAnimationEasingSetting.Offered.Select(key => new ChoiceOption(key))];
+
         AvailableWidgets = new ObservableCollection<WidgetOption>(
             shell.AvailableWidgets.Select(p => new WidgetOption(p.Descriptor.Id, p.Descriptor.DisplayName)));
 
@@ -48,6 +53,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<ChoiceOption> ThemeOptions { get; }
 
     public IReadOnlyList<ChoiceOption> LanguageOptions { get; }
+
+    public IReadOnlyList<ChoiceOption> AnimationEffectOptions { get; }
+
+    public IReadOnlyList<ChoiceOption> AnimationSpeedOptions { get; }
+
+    public IReadOnlyList<ChoiceOption> AnimationDirectionOptions { get; }
+
+    public IReadOnlyList<ChoiceOption> AnimationEasingOptions { get; }
 
     public ObservableCollection<WidgetOption> AvailableWidgets { get; }
 
@@ -67,6 +80,28 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _widgetsVisible = true;
+
+    [ObservableProperty]
+    private bool _desktopDoubleClickTogglesWidgets;
+
+    [ObservableProperty]
+    private ChoiceOption? _selectedAnimationEffect;
+
+    [ObservableProperty]
+    private ChoiceOption? _selectedAnimationSpeed;
+
+    [ObservableProperty]
+    private ChoiceOption? _selectedAnimationDirection;
+
+    [ObservableProperty]
+    private ChoiceOption? _selectedAnimationEasing;
+
+    /// <summary>
+    /// True while the animation choice is the sliding one: the three details below
+    /// it mean nothing when a show and a hide are not animated at all, so they are
+    /// shown as unavailable rather than as choices that do nothing.
+    /// </summary>
+    public bool AnimationIsSliding => WidgetAnimationSetting.IsAnimated(SelectedAnimationEffect?.Key);
 
     [ObservableProperty]
     private WidgetOption? _selectedAvailableWidget;
@@ -94,6 +129,20 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         _shell.SetWidgetsVisible(value);
     }
+
+    partial void OnDesktopDoubleClickTogglesWidgetsChanged(bool value) => PushToShell();
+
+    partial void OnSelectedAnimationEffectChanged(ChoiceOption? value)
+    {
+        OnPropertyChanged(nameof(AnimationIsSliding));
+        PushToShell();
+    }
+
+    partial void OnSelectedAnimationSpeedChanged(ChoiceOption? value) => PushToShell();
+
+    partial void OnSelectedAnimationDirectionChanged(ChoiceOption? value) => PushToShell();
+
+    partial void OnSelectedAnimationEasingChanged(ChoiceOption? value) => PushToShell();
 
     partial void OnSelectedWidgetChanged(WidgetRow? value)
     {
@@ -172,6 +221,49 @@ public sealed partial class SettingsViewModel : ObservableObject
             };
         }
 
+        foreach (var option in AnimationEffectOptions)
+        {
+            option.Label = option.Key switch
+            {
+                WidgetAnimationSetting.Slide => AppLanguage.Instance.Animation_EffectSlide.CurrentText(),
+                _ => AppLanguage.Instance.Animation_EffectNone.CurrentText(),
+            };
+        }
+
+        foreach (var option in AnimationSpeedOptions)
+        {
+            option.Label = option.Key switch
+            {
+                WidgetAnimationSpeedSetting.VeryFast => AppLanguage.Instance.Animation_SpeedVeryFast.CurrentText(),
+                WidgetAnimationSpeedSetting.Fast => AppLanguage.Instance.Animation_SpeedFast.CurrentText(),
+                WidgetAnimationSpeedSetting.Relaxed => AppLanguage.Instance.Animation_SpeedRelaxed.CurrentText(),
+                WidgetAnimationSpeedSetting.Slow => AppLanguage.Instance.Animation_SpeedSlow.CurrentText(),
+                _ => AppLanguage.Instance.Animation_SpeedStandard.CurrentText(),
+            };
+        }
+
+        foreach (var option in AnimationDirectionOptions)
+        {
+            option.Label = option.Key switch
+            {
+                WidgetAnimationDirectionSetting.Left => AppLanguage.Instance.Animation_DirectionLeft.CurrentText(),
+                WidgetAnimationDirectionSetting.Up => AppLanguage.Instance.Animation_DirectionUp.CurrentText(),
+                WidgetAnimationDirectionSetting.Down => AppLanguage.Instance.Animation_DirectionDown.CurrentText(),
+                _ => AppLanguage.Instance.Animation_DirectionRight.CurrentText(),
+            };
+        }
+
+        foreach (var option in AnimationEasingOptions)
+        {
+            option.Label = option.Key switch
+            {
+                WidgetAnimationEasingSetting.None => AppLanguage.Instance.Animation_EasingNone.CurrentText(),
+                WidgetAnimationEasingSetting.Light => AppLanguage.Instance.Animation_EasingLight.CurrentText(),
+                WidgetAnimationEasingSetting.Strong => AppLanguage.Instance.Animation_EasingStrong.CurrentText(),
+                _ => AppLanguage.Instance.Animation_EasingStandard.CurrentText(),
+            };
+        }
+
         foreach (var option in AvailableWidgets)
             option.DisplayName = WidgetText.Value(option.NameKey);
     }
@@ -188,6 +280,27 @@ public sealed partial class SettingsViewModel : ObservableObject
             StartWithWindows = _shell.State.Settings.StartWithWindows;
             ShowTrayIcon = _shell.State.Settings.ShowTrayIcon;
             WidgetsVisible = _shell.State.Settings.WidgetsVisible;
+            DesktopDoubleClickTogglesWidgets = _shell.State.Settings.DesktopDoubleClickTogglesWidgets;
+
+            // Normalised before matching: a database written by an earlier build, or by
+            // one that offered a choice this build dropped, holds a key no list has,
+            // and the shipped default is what such a value means.
+            Select(
+                AnimationEffectOptions,
+                WidgetAnimationSetting.Normalize(_shell.State.Settings.WidgetsAnimation),
+                option => SelectedAnimationEffect = option);
+            Select(
+                AnimationSpeedOptions,
+                WidgetAnimationSpeedSetting.Normalize(_shell.State.Settings.WidgetAnimationSpeed),
+                option => SelectedAnimationSpeed = option);
+            Select(
+                AnimationDirectionOptions,
+                WidgetAnimationDirectionSetting.Normalize(_shell.State.Settings.WidgetAnimationDirection),
+                option => SelectedAnimationDirection = option);
+            Select(
+                AnimationEasingOptions,
+                WidgetAnimationEasingSetting.Normalize(_shell.State.Settings.WidgetAnimationEasing),
+                option => SelectedAnimationEasing = option);
 
             var selectedId = SelectedWidget?.InstanceId;
 
@@ -229,6 +342,11 @@ public sealed partial class SettingsViewModel : ObservableObject
             Theme = SelectedTheme?.Key ?? ThemeSetting.System,
             StartWithWindows = StartWithWindows,
             ShowTrayIcon = ShowTrayIcon,
+            DesktopDoubleClickTogglesWidgets = DesktopDoubleClickTogglesWidgets,
+            WidgetsAnimation = SelectedAnimationEffect?.Key ?? WidgetAnimationSetting.Slide,
+            WidgetAnimationSpeed = SelectedAnimationSpeed?.Key ?? WidgetAnimationSpeedSetting.Standard,
+            WidgetAnimationDirection = SelectedAnimationDirection?.Key ?? WidgetAnimationDirectionSetting.Right,
+            WidgetAnimationEasing = SelectedAnimationEasing?.Key ?? WidgetAnimationEasingSetting.Standard,
             Language = SelectedLanguage?.Key ?? LanguageSetting.System,
         });
     }

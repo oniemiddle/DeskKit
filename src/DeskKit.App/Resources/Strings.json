@@ -11,7 +11,13 @@
     "Theme": "Theme",
     "Language": "Language",
     "ShowWidgets": "Show desktop widgets",
+    "DesktopDoubleClick": "Double-clicking the desktop shows or hides the widgets",
     "ShowTrayIcon": "Show an icon in the notification area",
+    "AnimationEffect": "Show animation",
+    "AnimationSpeed": "Animation speed",
+    "AnimationDirection": "Slide direction",
+    "AnimationEasing": "Easing",
+    "AnimationHint": "How the widgets appear and disappear when they are shown or hidden. The slide takes them off the edge of the screen they are on, so the direction is the side they leave by.",
     "Hint": "Widgets sit on the wallpaper, below every ordinary window. Win+D or the taskbar's \"Show desktop\" will not hide them."
   },
   "Startup": {
@@ -26,6 +32,23 @@
     "System": "Follow system",
     "Light": "Light",
     "Dark": "Dark"
+  },
+  "Animation": {
+    "EffectNone": "Off",
+    "EffectSlide": "Slide",
+    "SpeedVeryFast": "Very fast",
+    "SpeedFast": "Fast",
+    "SpeedStandard": "Standard",
+    "SpeedRelaxed": "Relaxed",
+    "SpeedSlow": "Slow",
+    "DirectionUp": "Up",
+    "DirectionDown": "Down",
+    "DirectionLeft": "Left",
+    "DirectionRight": "Right",
+    "EasingNone": "None",
+    "EasingLight": "Light",
+    "EasingStandard": "Standard",
+    "EasingStrong": "Strong"
   },
   "Language": {
     "System": "Follow system"

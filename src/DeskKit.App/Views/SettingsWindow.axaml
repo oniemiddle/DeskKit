@@ -13,49 +13,123 @@
 
     <TabControl Margin="12">
         <TabItem Header="{Translate {x:Static loc:AppLanguage+Keys.Tab_Appearance}}">
-            <StackPanel Margin="10" Spacing="14">
-                <StackPanel Spacing="6">
-                    <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Theme}}"
-                               FontWeight="SemiBold" />
-                    <ComboBox Width="200"
-                              HorizontalAlignment="Left"
-                              ItemsSource="{Binding ThemeOptions}"
-                              SelectedItem="{Binding SelectedTheme}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ChoiceOption">
-                                <TextBlock Text="{Binding Label}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+            <ScrollViewer>
+                <StackPanel Margin="10" Spacing="14">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Theme}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding ThemeOptions}"
+                                  SelectedItem="{Binding SelectedTheme}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Language}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding LanguageOptions}"
+                                  SelectedItem="{Binding SelectedLanguage}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <CheckBox Content="{Translate {x:Static loc:AppLanguage+Keys.Appearance_ShowWidgets}}"
+                              IsChecked="{Binding WidgetsVisible}" />
+
+                    <CheckBox Content="{Translate {x:Static loc:AppLanguage+Keys.Appearance_DesktopDoubleClick}}"
+                              IsChecked="{Binding DesktopDoubleClickTogglesWidgets}" />
+
+                    <CheckBox Content="{Translate {x:Static loc:AppLanguage+Keys.Appearance_ShowTrayIcon}}"
+                              IsChecked="{Binding ShowTrayIcon}" />
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_AnimationEffect}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  ItemsSource="{Binding AnimationEffectOptions}"
+                                  SelectedItem="{Binding SelectedAnimationEffect}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_AnimationSpeed}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  IsEnabled="{Binding AnimationIsSliding}"
+                                  ItemsSource="{Binding AnimationSpeedOptions}"
+                                  SelectedItem="{Binding SelectedAnimationSpeed}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_AnimationDirection}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  IsEnabled="{Binding AnimationIsSliding}"
+                                  ItemsSource="{Binding AnimationDirectionOptions}"
+                                  SelectedItem="{Binding SelectedAnimationDirection}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_AnimationEasing}}"
+                                   FontWeight="SemiBold" />
+                        <ComboBox Width="200"
+                                  HorizontalAlignment="Left"
+                                  IsEnabled="{Binding AnimationIsSliding}"
+                                  ItemsSource="{Binding AnimationEasingOptions}"
+                                  SelectedItem="{Binding SelectedAnimationEasing}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ChoiceOption">
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <TextBlock MaxWidth="480"
+                               HorizontalAlignment="Left"
+                               TextWrapping="Wrap"
+                               Opacity="0.7"
+                               Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_AnimationHint}}" />
+
+                    <TextBlock MaxWidth="480"
+                               HorizontalAlignment="Left"
+                               TextWrapping="Wrap"
+                               Opacity="0.7"
+                               Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Hint}}" />
                 </StackPanel>
-
-                <StackPanel Spacing="6">
-                    <TextBlock Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Language}}"
-                               FontWeight="SemiBold" />
-                    <ComboBox Width="200"
-                              HorizontalAlignment="Left"
-                              ItemsSource="{Binding LanguageOptions}"
-                              SelectedItem="{Binding SelectedLanguage}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:ChoiceOption">
-                                <TextBlock Text="{Binding Label}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </StackPanel>
-
-                <CheckBox Content="{Translate {x:Static loc:AppLanguage+Keys.Appearance_ShowWidgets}}"
-                          IsChecked="{Binding WidgetsVisible}" />
-
-                <CheckBox Content="{Translate {x:Static loc:AppLanguage+Keys.Appearance_ShowTrayIcon}}"
-                          IsChecked="{Binding ShowTrayIcon}" />
-
-                <TextBlock MaxWidth="480"
-                           HorizontalAlignment="Left"
-                           TextWrapping="Wrap"
-                           Opacity="0.7"
-                           Text="{Translate {x:Static loc:AppLanguage+Keys.Appearance_Hint}}" />
-            </StackPanel>
+            </ScrollViewer>
         </TabItem>
 
         <TabItem Header="{Translate {x:Static loc:AppLanguage+Keys.Tab_Startup}}">

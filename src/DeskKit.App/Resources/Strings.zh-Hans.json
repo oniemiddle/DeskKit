@@ -11,7 +11,13 @@
     "Theme": "主题",
     "Language": "语言",
     "ShowWidgets": "显示桌面组件",
+    "DesktopDoubleClick": "双击桌面空白处显示或隐藏组件",
     "ShowTrayIcon": "在通知区域显示图标",
+    "AnimationEffect": "显示动画",
+    "AnimationSpeed": "动画速度",
+    "AnimationDirection": "滑动方向",
+    "AnimationEasing": "缓动强度",
+    "AnimationHint": "组件显示或隐藏时的出现方式。滑动会把组件移出它所在显示器的边缘，因此方向指的是它从哪一侧离开。",
     "Hint": "组件会贴在壁纸上、位于所有普通窗口的下方。按 Win+D 或点击任务栏的“显示桌面”不会让它们消失。"
   },
   "Startup": {
@@ -26,6 +32,23 @@
     "System": "跟随系统",
     "Light": "浅色",
     "Dark": "深色"
+  },
+  "Animation": {
+    "EffectNone": "关闭",
+    "EffectSlide": "滑动",
+    "SpeedVeryFast": "极快",
+    "SpeedFast": "快速",
+    "SpeedStandard": "标准",
+    "SpeedRelaxed": "舒缓",
+    "SpeedSlow": "慢速",
+    "DirectionUp": "向上",
+    "DirectionDown": "向下",
+    "DirectionLeft": "向左",
+    "DirectionRight": "向右",
+    "EasingNone": "无",
+    "EasingLight": "轻微",
+    "EasingStandard": "标准",
+    "EasingStrong": "强烈"
   },
   "Language": {
     "System": "跟随系统"

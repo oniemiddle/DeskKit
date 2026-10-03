@@ -1,10 +1,12 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using DeskKit.App.Localization;
 using DeskKit.App.Services;
 using DeskKit.App.Shell;
@@ -14,7 +16,6 @@ using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Core.Services;
 using DeskKit.Persistence;
-using DeskKit.Platform;
 using DeskKit.Platform.Windows;
 using DeskKit.Widgets;
 using DeskKit.Widgets.Clock;
@@ -108,6 +109,8 @@ internal sealed partial class DesktopLayerSelfTest
 
             var seeded = runtime.Placement;
 
+            await CheckShowAndHideAsync(shell, runtime);
+
             // Restart against the same directory.
             shell.Dispose();
             await Delay(300);
@@ -146,6 +149,366 @@ internal sealed partial class DesktopLayerSelfTest
     /// the whole surface, so without a reserved region it cannot be moved at all.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// The slide that shows and hides the widgets moves real windows on a timer,
+    /// which is the one part of the preference no unit test can reach: the rules are
+    /// pure and tested, but whether a window actually moves, and ends up back exactly
+    /// where it was, depends on the window manager and on the pinning hook.
+    /// </summary>
+    /// <remarks>
+    /// The seeded widget is nudged through a whole hide and a whole show, with the
+    /// frames in between watched rather than assumed: a slide that jumped straight to
+    /// its end would pass a test that only looked at the final state.
+    /// </remarks>
+    private async Task CheckShowAndHideAsync(WidgetShell shell, WidgetRuntime runtime)
+    {
+        var window = runtime.Window;
+        var hwnd = window.Handle;
+        var resting = window.Position;
+
+        if (window.Handle == IntPtr.Zero)
+        {
+            Fail("the widget can be slid away and back", "no window handle");
+            return;
+        }
+
+        var duration = WidgetAnimationSpeedSetting.DurationMs(shell.State.Settings.WidgetAnimationSpeed);
+        Note($"slide: {duration}ms, direction={shell.State.Settings.WidgetAnimationDirection}, "
+             + $"easing={shell.State.Settings.WidgetAnimationEasing}, from {resting}");
+
+        // Hiding: partway through, the window has to have left its place and not yet
+        // be where it is going.
+        shell.SetWidgetsVisible(false);
+        await Delay(Math.Max(40, duration / 4));
+
+        var midway = window.Position;
+        var stillOnScreen = DesktopDiagnostics.IsVisible(hwnd);
+
+        Check("hiding moves the widget rather than hiding it at once",
+            stillOnScreen && midway != resting,
+            $"visible={stillOnScreen} position={midway} resting={resting}");
+
+        await Delay(duration + 400);
+
+        Check("a hidden widget ends up hidden", !DesktopDiagnostics.IsVisible(hwnd));
+        Check("a hidden widget is put back in its own place", window.Position == resting,
+            $"{window.Position} vs {resting}");
+
+        // Showing: it comes back from off screen and lands exactly on its place.
+        shell.SetWidgetsVisible(true);
+        await Delay(duration + 400);
+
+        Check("a shown widget is visible again", DesktopDiagnostics.IsVisible(hwnd));
+        Check("a shown widget lands exactly where it belongs", window.Position == resting,
+            $"{window.Position} vs {resting}");
+
+        Check("the shown widget is still pinned below every ordinary window",
+            CountOffendersBelow(hwnd) == 0, $"position={window.Position}");
+
+        await CheckSlideProfileAsync(shell, runtime, resting);
+        await CheckSetSlidesAsOneAsync(shell);
+
+        // The same command with the animation turned off has to be immediate, because
+        // a preference that says "no animation" must not leave the shell half-moved.
+        shell.ApplySettings(shell.State.Settings with { WidgetsAnimation = WidgetAnimationSetting.None });
+        shell.SetWidgetsVisible(false);
+
+        Check("with the animation off, hiding is immediate",
+            !DesktopDiagnostics.IsVisible(hwnd), $"position={window.Position}");
+
+        shell.SetWidgetsVisible(true);
+
+        Check("with the animation off, showing is immediate",
+            DesktopDiagnostics.IsVisible(hwnd), $"position={window.Position}");
+
+        Check("with the animation off, the widget is where it belongs", window.Position == resting,
+            $"{window.Position} vs {resting}");
+    }
+
+    /// <summary>
+    /// Watches the window's position while a hide and a show run, because how a slide
+    /// <em>feels</em> is not the same question as where it ends up.
+    /// </summary>
+    /// <remarks>
+    /// Two properties are checked, and both were wrong the first time this animation
+    /// was written. A widget leaving has to be accelerating away and one arriving has
+    /// to be decelerating into place — using one curve for both directions is what
+    /// makes the other direction read as a jump followed by a crawl. And the motion
+    /// has to arrive in a run of frames rather than in one leap, which is what makes
+    /// it a slide rather than a flicker.
+    /// </remarks>
+    private async Task CheckSlideProfileAsync(WidgetShell shell, WidgetRuntime runtime, PixelPoint resting)
+    {
+        var hiding = await SampleSlideAsync(shell, runtime, show: false);
+        var showing = await SampleSlideAsync(shell, runtime, show: true);
+
+        Note($"hide frames: {hiding.Describe()}");
+        Note($"show frames: {showing.Describe()}");
+
+        Check("the slide is drawn over many frames rather than one leap",
+            hiding.DistinctPositions >= 4 && showing.DistinctPositions >= 4,
+            $"hide={hiding.DistinctPositions} show={showing.DistinctPositions}");
+
+        // The half of the run that carries the motion: the far half for a hide, the
+        // near half for a show.
+        Check("a hiding widget accelerates away",
+            hiding.TravelLastHalf > hiding.TravelFirstHalf,
+            $"first half {hiding.TravelFirstHalf}px, second half {hiding.TravelLastHalf}px");
+
+        Check("a showing widget decelerates into place",
+            showing.TravelFirstHalf > showing.TravelLastHalf,
+            $"first half {showing.TravelFirstHalf}px, second half {showing.TravelLastHalf}px");
+
+        Check("the sampled slide ended where it belongs", runtime.Window.Position == resting,
+            $"{runtime.Window.Position} vs {resting}");
+
+        // The travel seen inside the first 30ms is reported rather than asserted: it reads
+        // the same for a widget revealed at its start position and moved on the next frame
+        // as for one revealed part-way along, because the arrive curve covers half its
+        // distance in its first frame or two either way. It is worth seeing in the report
+        // for that reason — the curve really is that steep — but it cannot tell the two
+        // apart, and a check that flips with which sampling tick lands first is worse than
+        // no check.
+
+        var configured = WidgetAnimationSpeedSetting.DurationMs(shell.State.Settings.WidgetAnimationSpeed);
+
+        // Counted from the command, so what is asserted is the slide's own length rather
+        // than how long its curve takes to move a whole pixel. The last frame is not free
+        // to measure: a hide is hidden and put back in the same callback that lands it, and
+        // a show's final frames cover about a pixel between them, so the last movement seen
+        // is a frame or two short of the landing. That is why the floor sits a little under
+        // the preference — what it still catches is a slide running off a frame count
+        // rather than a clock, or off another speed's time, either of which lands hundreds
+        // of milliseconds away from here.
+        Check("the slide lasts as long as the preference asks",
+            hiding.LandedMs >= configured - 60 && hiding.LandedMs <= configured + 120
+                && showing.LandedMs >= configured - 60 && showing.LandedMs <= configured + 120,
+            $"configured {configured}ms, hide {hiding.LandedMs}ms, show {showing.LandedMs}ms");
+
+        // 60Hz is a step every ~17ms and a slide coalesced into every other frame is a
+        // step every ~33ms, so the threshold sits between the two. Durations and easing
+        // curves are identical either way; what changes is how far the window moves per
+        // step, which is what makes a slide read as quicker and over sooner.
+        const double CoalescedStepMs = 26;
+
+        Check("the slide is drawn in steps of about one display frame",
+            hiding.MedianGapMs <= CoalescedStepMs && showing.MedianGapMs <= CoalescedStepMs,
+            $"hide {hiding.MedianGapMs:0.#}ms, show {showing.MedianGapMs:0.#}ms per step");
+    }
+
+    /// <summary>
+    /// A set of widgets slides as <em>one thing</em>: whatever the distance between
+    /// two of them when the slide starts, it is the same at every frame of it.
+    /// </summary>
+    /// <remarks>
+    /// This is the property that a per-widget travel quietly breaks. Two widgets on
+    /// the same screen are different distances from the edge they are leaving by, so
+    /// giving each its own travel moves the far one slowly and the near one quickly,
+    /// and the near one visibly catches up with the far one on the way out. The two
+    /// are placed far apart here for exactly that reason.
+    /// </remarks>
+    private async Task CheckSetSlidesAsOneAsync(WidgetShell shell)
+    {
+        var widgets = shell.Runtimes;
+        if (widgets.Count == 0)
+            return;
+
+        var provider = shell.AvailableWidgets
+            .FirstOrDefault(p => p.Descriptor.Id == widgets[0].Placement.WidgetId);
+
+        if (provider is null || shell.AddWidget(provider) is not { } second)
+        {
+            Fail("a second widget can be placed to slide with the first", "not created");
+            return;
+        }
+
+        var duration = WidgetAnimationSpeedSetting.DurationMs(shell.State.Settings.WidgetAnimationSpeed);
+        var first = widgets[0];
+
+        // Far from the first, but still on the same screen.
+        second.Window.Position = new PixelPoint(first.Window.Position.X + 1200, first.Window.Position.Y + 200);
+
+        try
+        {
+            var firstStart = first.Window.Position;
+            var gapX = second.Window.Position.X - firstStart.X;
+            var gapY = second.Window.Position.Y - firstStart.Y;
+            var worstDrift = 0;
+            var moved = false;
+
+            var sampler = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
+            sampler.Tick += (_, _) =>
+            {
+                var a = first.Window.Position;
+                var b = second.Window.Position;
+
+                worstDrift = Math.Max(worstDrift, Math.Max(
+                    Math.Abs((b.X - a.X) - gapX), Math.Abs((b.Y - a.Y) - gapY)));
+
+                moved |= a != firstStart;
+            };
+            sampler.Start();
+
+            shell.SetWidgetsVisible(false);
+            await Delay(duration + 250);
+            shell.SetWidgetsVisible(true);
+            await Delay(duration + 250);
+            sampler.Stop();
+
+            Note($"set slide: gap {gapX},{gapY}px, worst relative drift {worstDrift}px");
+
+            Check("the widget set really moved", moved);
+            Check("the widgets keep their distance from each other while they slide",
+                worstDrift <= 2, $"worst drift {worstDrift}px");
+        }
+        finally
+        {
+            shell.RemoveWidget(second.ViewModel);
+            await Delay(200);
+        }
+    }
+
+    private async Task<SlideProfile> SampleSlideAsync(WidgetShell shell, WidgetRuntime runtime, bool show)
+    {
+        var duration = WidgetAnimationSpeedSetting.DurationMs(shell.State.Settings.WidgetAnimationSpeed);
+        var samples = new List<(double Ms, PixelPoint Position)>();
+
+        // Where the widget belongs, which is what tells movement that belongs to the
+        // slide from the two single jumps either side of it.
+        var resting = runtime.Window.Position;
+
+        // Sampling on the UI thread, like the animation itself, so what is recorded is
+        // the position after each frame it applied.
+        var clock = Stopwatch.StartNew();
+        var sampler = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(12) };
+        sampler.Tick += (_, _) => samples.Add((clock.Elapsed.TotalMilliseconds, runtime.Window.Position));
+        sampler.Start();
+
+        // Counted from here rather than from the first pixel that moves: under the
+        // standard easing a hide moves a twentieth of a pixel in its first frame, so
+        // waiting for one to appear would measure the curve rather than the duration.
+        var calledMs = clock.Elapsed.TotalMilliseconds;
+
+        shell.SetWidgetsVisible(show);
+
+        await Delay(duration + 400);
+        sampler.Stop();
+
+        return SlideProfile.From(samples, duration, calledMs, resting, show);
+    }
+
+    /// <summary>What a slide looked like from outside: where the window was, and when.</summary>
+    /// <remarks>
+    /// Only the movement that belongs to the slide is counted. A show starts by
+    /// putting the window off screen and a hide ends by putting it back where it
+    /// belongs, and both of those are single jumps that would otherwise swamp the
+    /// measurement and make either direction look like whatever the check expects.
+    /// What is left is movement along the line the slide travels: away from the
+    /// resting place for a hide, back towards it for a show.
+    /// <para>
+    /// <see cref="LandedMs"/> and <see cref="MedianGapMs"/> are what say whether the
+    /// slide takes as long as the preference asks and whether it arrives in the number
+    /// of steps a display frame gives it. Both are the same duration and the same curve
+    /// whichever of those two goes wrong, so distance travelled says nothing about
+    /// either: a slide drawn in half as many steps moves twice as far per step, which
+    /// reads as quicker at the start and over sooner.
+    /// </para>
+    /// </remarks>
+    private sealed record SlideProfile(
+        int Frames, int DistinctPositions, int TravelFirstHalf, int TravelLastHalf, int Travel, int LeadIn, int LargestStep,
+        int LandedMs, double MedianGapMs)
+    {
+        /// <summary>About the first two frames: long enough for a jump to show up in.</summary>
+        public const int LeadInMs = 30;
+
+        public static SlideProfile From(
+            List<(double Ms, PixelPoint Position)> samples,
+            int durationMs,
+            double calledMs,
+            PixelPoint resting,
+            bool showing)
+        {
+            var distinct = samples.Select(sample => sample.Position).Distinct().Count();
+            var firstHalf = 0;
+            var lastHalf = 0;
+            var total = 0;
+            var leadIn = 0;
+            var largestStep = 0;
+            double? lastMoveMs = null;
+            double? previousMoveMs = null;
+            var gaps = new List<double>();
+
+            for (var index = 1; index < samples.Count; index++)
+            {
+                var before = DistanceFrom(samples[index - 1].Position, resting);
+                var after = DistanceFrom(samples[index].Position, resting);
+                var belongsToTheSlide = showing ? after < before : after > before;
+
+                if (!belongsToTheSlide)
+                    continue;
+
+                var step = Math.Abs(samples[index].Position.X - samples[index - 1].Position.X)
+                    + Math.Abs(samples[index].Position.Y - samples[index - 1].Position.Y);
+
+                total += step;
+                largestStep = Math.Max(largestStep, step);
+
+                if (step > 0)
+                {
+                    lastMoveMs = samples[index].Ms;
+
+                    if (previousMoveMs is { } previous)
+                        gaps.Add(samples[index].Ms - previous);
+
+                    previousMoveMs = samples[index].Ms;
+                }
+
+                if (samples[index].Ms <= LeadInMs)
+                    leadIn += step;
+
+                if (samples[index].Ms <= durationMs / 2.0)
+                    firstHalf += step;
+                else
+                    lastHalf += step;
+            }
+
+            // Counted back to the command rather than forward from the first pixel that
+            // moved: under the standard easing a hide moves a twentieth of a pixel in its
+            // first frame and does not move a whole one for another forty milliseconds, so
+            // starting at the first pixel would measure the curve rather than the slide.
+            var landedAt = lastMoveMs is { } last ? (int)Math.Round(last - calledMs) : 0;
+
+            return new SlideProfile(
+                samples.Count, distinct, firstHalf, lastHalf, total, leadIn, largestStep, landedAt, Median(gaps));
+        }
+
+        /// <summary>
+        /// The middle step: one the sampler missed would inflate an average, and a step
+        /// being missed is exactly what a slide drawn too coarsely looks like.
+        /// </summary>
+        private static double Median(List<double> values)
+        {
+            if (values.Count == 0)
+                return 0;
+
+            values.Sort();
+            var middle = values.Count / 2;
+
+            return values.Count % 2 == 1
+                ? values[middle]
+                : (values[middle - 1] + values[middle]) / 2.0;
+        }
+
+        private static int DistanceFrom(PixelPoint position, PixelPoint resting) =>
+            Math.Abs(position.X - resting.X) + Math.Abs(position.Y - resting.Y);
+
+        public string Describe() =>
+            $"{Frames} samples, {DistinctPositions} positions, "
+            + $"first half {TravelFirstHalf}px, second half {TravelLastHalf}px, "
+            + $"lead-in {LeadIn}px of {Travel}px, largest step {LargestStep}px, "
+            + $"landed at {LandedMs}ms in steps of {MedianGapMs:0.#}ms";
+    }
+
     private async Task CheckDragHandleChromeAsync()
     {
         Section("10. drag handle chrome and magnetism glow");

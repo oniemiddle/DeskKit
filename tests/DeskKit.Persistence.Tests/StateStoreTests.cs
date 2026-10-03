@@ -79,6 +79,11 @@ public sealed class StateStoreTests : IDisposable
                 StartWithWindows = true,
                 ShowTrayIcon = false,
                 WidgetsVisible = false,
+                DesktopDoubleClickTogglesWidgets = true,
+                WidgetsAnimation = WidgetAnimationSetting.None,
+                WidgetAnimationSpeed = WidgetAnimationSpeedSetting.Slow,
+                WidgetAnimationDirection = WidgetAnimationDirectionSetting.Up,
+                WidgetAnimationEasing = WidgetAnimationEasingSetting.Strong,
             },
             Widgets =
             [
@@ -99,6 +104,11 @@ public sealed class StateStoreTests : IDisposable
         Assert.True(state.Settings.StartWithWindows);
         Assert.False(state.Settings.ShowTrayIcon);
         Assert.False(state.Settings.WidgetsVisible);
+        Assert.True(state.Settings.DesktopDoubleClickTogglesWidgets);
+        Assert.Equal(WidgetAnimationSetting.None, state.Settings.WidgetsAnimation);
+        Assert.Equal(WidgetAnimationSpeedSetting.Slow, state.Settings.WidgetAnimationSpeed);
+        Assert.Equal(WidgetAnimationDirectionSetting.Up, state.Settings.WidgetAnimationDirection);
+        Assert.Equal(WidgetAnimationEasingSetting.Strong, state.Settings.WidgetAnimationEasing);
 
         Assert.Equal(2, state.Widgets.Count);
         Assert.Equal("e49eb887", state.Widgets[0].InstanceId);

@@ -33,6 +33,8 @@ internal sealed class WidgetRuntimeHost(
 {
     private readonly List<WidgetRuntime> _widgets = [];
 
+    private readonly WidgetVisibilityAnimator _animation = new(desktopLayer, logger);
+
     public IReadOnlyList<WidgetRuntime> Runtimes => _widgets;
 
     /// <summary>Starts driving the widgets that asked for a periodic callback.</summary>
@@ -156,6 +158,10 @@ internal sealed class WidgetRuntimeHost(
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
+        // Before the window is closed: a slide that is still running would otherwise
+        // try to move a window that no longer exists.
+        _animation.Forget(runtime);
+
         _widgets.Remove(runtime);
 
         // A widget that never reached its start was never subscribed, and unsubscribing
@@ -188,25 +194,35 @@ internal sealed class WidgetRuntimeHost(
 
     /// <summary>
     /// Shows or hides every widget's window at once, for the tray's hide-the-widgets
-    /// command. Only the surfaces move: the widgets stay running.
+    /// command and the desktop's own double-click. Only the surfaces move: the
+    /// widgets stay running.
     /// </summary>
     /// <remarks>
     /// Hiding is deliberate rather than closed, so nothing is created or destroyed and a
     /// widget keeps whatever it was showing. The windows are told by the desktop layer
     /// rather than by the window itself, because a hidden widget window must stay out of
     /// the way of the desktop's own show-desktop handling.
+    /// <para>
+    /// When the stored preference asks for it, the surfaces slide to the edge of their
+    /// screen and back instead of appearing and disappearing. The state has already
+    /// changed by the time this returns; the animation is only what the change looks
+    /// like.
+    /// </para>
     /// </remarks>
-    public void SetVisible(bool visible)
+    public void SetVisible(bool visible, IReadOnlyList<ScreenBounds> screens)
     {
+        ArgumentNullException.ThrowIfNull(screens);
+
         foreach (var widget in _widgets)
-        {
-            desktopLayer.SetVisible(widget.Window, visible);
             widget.IsVisible = visible;
-        }
+
+        _animation.SetVisible(_widgets, visible, screens, workspace.State.Settings);
     }
 
     public void Dispose()
     {
+        _animation.Dispose();
+
         foreach (var widget in _widgets.ToArray())
             Destroy(widget);
 

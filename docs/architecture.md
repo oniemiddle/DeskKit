@@ -71,17 +71,19 @@ implementations, and the capabilities only the product uses, live here:
 | Capability | Contract | Windows implementation | Neutral implementation |
 | --- | --- | --- | --- |
 | Desktop placement and deliberate visibility | `Core`: `IDesktopLayerService` | `WindowsDesktopLayerService` | `NullDesktopLayerService` |
+| Desktop's own double-click | `Core`: `IDesktopGestureService` | `WindowsDesktopGestureService` | `NullDesktopGestureService` |
 | Window material | `Core`: `IWindowMaterialService` (+ `WidgetMaterial`) | `WindowsWindowMaterialService` | `NullWindowMaterialService` |
 | File icons | `Core`: `IShellIconLoader` | `WindowsShellIconLoader` | `NullShellIconLoader` |
 | Login startup | `Platform`: `IAutoStartService` | `WindowsAutoStartService` | `NullAutoStartService` |
 | Notification window styling | `Platform`: `INotificationWindowStyler` | `WindowsNotificationWindowStyler` | `NullNotificationWindowStyler` |
 
 The rules that decide *whether* a capability can be honoured stay here as
-dependency-free static classes (`MaterialPolicy.Resolve`, `DesktopLayerPolicy`),
-so they are unit-tested rather than discovered on one particular machine. Note that
-`MaterialPolicy` still takes the build number: "Mica is available" is a question
-about the machine, whereas "this is a Windows build" is a question about the
-compilation, and only the second one becomes a target framework.
+dependency-free static classes (`MaterialPolicy.Resolve`, `DesktopLayerPolicy`,
+`DesktopBackdropPolicy`, `DesktopDoubleClickDetector`), so they are unit-tested
+rather than discovered on one particular machine. Note that `MaterialPolicy` still
+takes the build number: "Mica is available" is a question about the machine,
+whereas "this is a Windows build" is a question about the compilation, and only
+the second one becomes a target framework.
 
 `AddDeskKitPlatform()` is the only platform selection point used by the app, and it
 holds no runtime test — the compiler has already answered. Adding an OS therefore
@@ -166,7 +168,8 @@ one collaborator. Everything else belongs to a named owner —
 `WorkspaceState` (the state), `WidgetRuntimeHost` (widget instances and their
 lifetimes), `WidgetSurfaceFactory` (window construction), `PlacementController`
 (snapping and write-back), `AppearanceController` (theme and material on a live
-surface) and `ShellStartup` (what a load report is worth saying and how stored
+surface), `WidgetVisibilityAnimator` (sliding the surfaces when they are shown
+and hidden) and `ShellStartup` (what a load report is worth saying and how stored
 settings catch up). It builds no UI of its own: the tray icon, the settings
 window, the context menu and the storage notice are the product's, wired in the
 composition root, which is also where start-with-Windows is reconciled. It is

@@ -142,6 +142,96 @@ Two deliberate consequences:
 - An intentional hide (the tray's "hide all widgets") suspends the hook, which
   is what `IDesktopLayerService.SetVisible` does.
 
+### Appearing and disappearing
+
+Showing or hiding every widget — from the tray, or from the desktop's own
+double-click — can slide them to the edge of their screen and back, so the change
+reads as the widgets leaving rather than blinking out. It is a preference
+(*Appearance*), on by default, with a speed, a direction and an easing strength;
+turning the animation off makes the same command show and hide in one step.
+
+**The set slides as one thing.** Every widget in a run moves by the same vector,
+worked out once from the rectangle they all occupy, so whatever distance apart
+they are when the slide starts is the distance apart at every frame of it. Giving
+each its own travel — the distance from *that* widget to the edge — moves the far
+ones slowly and the near ones quickly, and the near ones visibly catch up with the
+far ones on the way out.
+
+The movement is of the window, not of the card inside it: a card transformed
+within its own window is clipped by that window and reads as a card sliding about
+inside a fixed frame. The distance travelled is the one to the edge of the screen,
+not the set's own size — a set that slid only its own size would still be on
+screen when it is hidden, so the last frame of a hide would be widgets vanishing
+rather than leaving. On a multi-monitor desktop that means a slide can briefly
+cross onto a neighbouring monitor, which is the one place this differs from the
+reference implementation: it confines the travel there and fades the widget out at
+the edge instead, and DeskKit has no fade to hide the shorter travel behind.
+
+The animator only drives frames: positions come from the compositor's frame
+callback, so an update lands once per displayed frame instead of on a timer that
+drifts against the refresh rate, and progress comes from a clock rather than from
+counting frames, so a dropped frame skips a position rather than stretching the
+slide. A slow watchdog finishes a run whose frames stopped arriving — a window
+hidden or closed mid-slide cannot leave the widgets half-way out.
+
+The rules are pure and unit-tested (`WidgetSlideAnimation`,
+`WidgetAnimationSettings`): the travel, the easing curve, and what an
+unrecognised stored key means. Four of those rules are worth stating, because
+each was wrong before it was measured:
+
+- **The two directions do not share a curve.** A widget arriving is decelerating
+  into a place it was put in; one leaving is accelerating away from a place it was
+  still in a moment ago. One curve used for both makes the direction it does not
+  suit read as a jump followed by a crawl.
+- **A long slide needs a long duration.** Travelling to the edge of the screen is
+  most of a metre of glass, so the slow end of the speed list is genuinely slow
+  rather than a second name for the default.
+- **One offset for the whole set**, as above.
+- **A show begins when its window does.** The clock starts on the frame after the
+  window is revealed, and that frame holds the widget at its start position. The
+  arrive curve covers most of its distance in its first few frames, so a clock
+  started before the window was on screen spent a third of the slide before anyone
+  could see it — the same slide, but read as faster and jerkier. The reference
+  implementation draws the same line, waiting for its content to be ready before it
+  starts moving.
+
+`--selftest` measures all of this from outside: it samples the windows while a hide
+and a show run and checks that a hide accelerates away, a show decelerates into
+place, neither is drawn as one leap, a show is not already part-way through when it
+appears, and two widgets 1200px apart keep their distance to the pixel.
+
+### The desktop's own double-click
+
+Double-clicking an empty part of the desktop can show or hide every widget, the
+same command the tray's item runs. It is **off until it is turned on** in
+*Appearance*, because Explorer offers the same gesture for its own purpose
+("double-click to show desktop icons") and the two would otherwise fight over it.
+
+"Empty part" is decided properly rather than guessed at. `WindowFromPoint` is
+walked up its parent chain, which has to be a chain of the shell's own window
+classes — `Progman`, `WorkerW`, `SHELLDLL_DefView`, `SysListView32` — rooted in
+the wallpaper and owned by the process `GetShellWindow` names. With desktop icons
+shown, that chain ends at the icon list, so the point is then hit-tested against
+it: `LVM_HITTEST` takes a pointer USER32 does not marshal across processes, so
+the structure is written into Explorer's own address space, the message is sent
+with a deadline, and the answer is the index of the item under the point or -1.
+A hit test that cannot be completed counts as empty, so a machine where the shell
+refuses to be read keeps the gesture instead of losing it.
+
+Double-clicking a widget, a window, an icon or an empty part of a *maximised*
+window therefore does nothing, and neither does anything that never reaches the
+desktop.
+
+The gesture is watched with a low-level mouse hook (`WH_MOUSE_LL`) rather than a
+window of our own, because a window large enough to cover the desktop would eat
+the clicks the desktop is there to receive. The callback runs on the machine's
+input path, so it does the least possible — copy the press into a queue and
+return — and the hit test happens afterwards on a worker. The hook itself is
+installed on a thread of its own with a message loop, so a UI thread busy
+rendering or showing a dialog cannot make Windows decide the callback is too slow
+and remove it. `DesktopBackdropPolicy` and `DesktopDoubleClickDetector` hold the
+rules as pure, unit-tested logic; the interop is a thin adapter over them.
+
 ### The window surface
 
 A widget has no window chrome, so the surface behind its content *is* the window.
@@ -684,4 +774,35 @@ pwsh -File scripts/New-AppIcon.ps1
 
 ## License
 
-Not chosen yet.
+DeskKit is free software under the **GNU General Public License, version 3 or
+later** — see [LICENSE](LICENSE) for the full text. It is under that license
+because of where its desktop behaviour was learned from: [DeskBox](#acknowledgements)
+is GPL-3.0, and a project that takes its behaviour is under the same terms.
+
+In practice: you may use, study, share and modify DeskKit, including
+commercially, as long as anything you distribute that is built from it is under
+the same license and ships its source. There is no warranty.
+
+Third-party packages keep their own licenses; the GPL applies to DeskKit itself.
+
+## Acknowledgements
+
+- **[DeskBox](https://github.com/Tianyu199509/DeskBox)** (GPL-3.0) — a Windows
+  desktop organizer, and the source of two behaviours DeskKit deliberately
+  matches:
+  - the **optional double-click on an empty part of the desktop** that shows or
+    hides everything, including how "empty" is decided: the window under the
+    pointer has to belong to the shell, and, where desktop icons are shown, the
+    icon list is hit-tested so that a double-click on an icon is not one on the
+    wallpaper;
+  - the **slide used when widgets appear and disappear**, and the vocabulary
+    offered for it (slide effect, speed, direction, easing).
+
+  No DeskBox source was copied. The behaviour was studied and reimplemented
+  against the Win32 and Avalonia APIs in this project's own structure — the
+  desktop-layer rules here are the opposite of DeskBox's in places, because
+  DeskKit keeps widget windows top-level rather than reparenting them into
+  Explorer's wallpaper. The credit is for knowing what to build, and for the
+  option names that make the two feel like the same product.
+
+- **[Avalonia](https://avaloniaui.net/)** — the UI framework DeskKit is built on.

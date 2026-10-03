@@ -92,4 +92,28 @@ public sealed class PlacementNormalizerTests
             Primary.HasVisibleCorner(
                 x, y, PlacementNormalizer.RequiredVisibleWidth, PlacementNormalizer.RequiredVisibleHeight));
     }
+
+    [Theory]
+    [InlineData(400, 300, 0)]    // primary
+    [InlineData(2000, 300, 1920)] // secondary, which starts where primary ends
+    public void FindNearestScreen_AnswersWithTheScreenAPointIsOn(int x, int y, int expectedLeft)
+    {
+        var screen = PlacementNormalizer.FindNearestScreen(x, y, [Primary, Secondary]);
+
+        Assert.Equal(expectedLeft, screen.X);
+    }
+
+    [Fact]
+    public void FindNearestScreen_AnswersWithTheClosestScreenForAPointOnNone()
+    {
+        // A widget stranded far to the right picks the monitor it is nearest to for
+        // the same reason placement does, so a slide leaves by that monitor's edge.
+        Assert.Equal(Secondary.X, PlacementNormalizer.FindNearestScreen(9000, 300, [Primary, Secondary]).X);
+        Assert.Equal(Primary.X, PlacementNormalizer.FindNearestScreen(-3000, 300, [Primary, Secondary]).X);
+    }
+
+    [Fact]
+    public void FindNearestScreen_RefusesAnEmptyLayout() =>
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PlacementNormalizer.FindNearestScreen(10, 10, []));
 }

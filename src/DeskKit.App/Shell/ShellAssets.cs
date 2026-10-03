@@ -1,6 +1,5 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Platform;
-using DeskKit.Runtime;
 
 namespace DeskKit.App.Shell;
 
@@ -15,8 +14,6 @@ namespace DeskKit.App.Shell;
 /// </summary>
 internal sealed class ShellAssets
 {
-    private WindowIcon? _icon;
-
-    public WindowIcon Icon => _icon ??= new WindowIcon(
+    public WindowIcon Icon => field ??= new WindowIcon(
         AssetLoader.Open(new Uri("avares://DeskKit.App/Assets/deskkit.ico")));
 }

@@ -11,6 +11,10 @@
     "QuickLaunch": {
       "Name": "Quick launch",
       "Description": "Keep your usual apps, files and links on the desktop"
+    },
+    "TickTick": {
+      "Name": "TickTick tasks",
+      "Description": "Sync and update your TickTick tasks"
     }
   },
   "Clock": {
@@ -49,5 +53,37 @@
     "DropHint": "Drag files, shortcuts or folders here",
     "AddShortcutTitle": "Add shortcuts",
     "ProgramsFilter": "Programs and shortcuts"
+  },
+  "TickTick": {
+    "SettingsTitle": "Connect your TickTick account",
+    "SetupHint": "Create an app in the TickTick Developer Center. Set its redirect URL to the URL below, then enter its client ID and secret. DeskKit requests permission to read and update tasks.",
+    "ClientId": "Client ID",
+    "ClientSecret": "Client secret",
+    "RedirectUri": "Redirect URL",
+    "Connect": "Connect with TickTick",
+    "Sync": "Sync",
+    "Disconnect": "Disconnect",
+    "NotConnected": "Connect a TickTick account in widget settings.",
+    "CredentialsRequired": "Enter the client ID and secret first.",
+    "Authorizing": "Waiting for TickTick authorization…",
+    "Syncing": "Syncing tasks…",
+    "SyncedCount": "Synced {0} tasks",
+    "Complete": "Complete",
+    "Reopen": "Reopen",
+    "Save": "Save changes",
+    "TitlePlaceholder": "Task title",
+    "ContentPlaceholder": "Task notes",
+    "TaskSaved": "Task updated in TickTick.",
+    "TaskCompleted": "Task completed.",
+    "TaskReopened": "Task reopened.",
+    "AllLists": "All lists",
+    "Overdue": "Overdue",
+    "Today": "Today",
+    "Upcoming": "Upcoming",
+    "NoDate": "No date",
+    "CompletedGroup": "Completed & abandoned",
+    "Edit": "Edit",
+    "Cancel": "Cancel",
+    "NoTasks": "No tasks in this list."
   }
 }

@@ -11,6 +11,10 @@
     "QuickLaunch": {
       "Name": "快捷启动器",
       "Description": "把常用应用、文件和网址放在桌面上"
+    },
+    "TickTick": {
+      "Name": "滴答清单",
+      "Description": "同步并更新滴答清单中的待办"
     }
   },
   "Clock": {
@@ -49,5 +53,37 @@
     "DropHint": "把文件、快捷方式或文件夹拖到这里",
     "AddShortcutTitle": "添加快捷方式",
     "ProgramsFilter": "程序与快捷方式"
+  },
+  "TickTick": {
+    "SettingsTitle": "连接滴答清单账号",
+    "SetupHint": "在 TickTick 开发者中心创建应用，将回调地址设为下方地址，然后填写应用的 Client ID 和密钥。DeskKit 需要读取和更新待办的权限。",
+    "ClientId": "Client ID",
+    "ClientSecret": "Client 密钥",
+    "RedirectUri": "回调地址",
+    "Connect": "使用 TickTick 授权",
+    "Sync": "同步",
+    "Disconnect": "断开连接",
+    "NotConnected": "请在组件设置中连接 TickTick 账号。",
+    "CredentialsRequired": "请先填写 Client ID 和密钥。",
+    "Authorizing": "等待 TickTick 授权…",
+    "Syncing": "正在同步待办…",
+    "SyncedCount": "已同步 {0} 项待办",
+    "Complete": "完成",
+    "Reopen": "重新打开",
+    "Save": "保存修改",
+    "TitlePlaceholder": "待办标题",
+    "ContentPlaceholder": "待办备注",
+    "TaskSaved": "已在 TickTick 中更新待办。",
+    "TaskCompleted": "待办已完成。",
+    "TaskReopened": "待办已重新打开。",
+    "AllLists": "所有",
+    "Overdue": "已逾期",
+    "Today": "今天",
+    "Upcoming": "即将到期",
+    "NoDate": "无日期",
+    "CompletedGroup": "已完成与已放弃",
+    "Edit": "编辑",
+    "Cancel": "取消",
+    "NoTasks": "此清单中没有待办。"
   }
 }

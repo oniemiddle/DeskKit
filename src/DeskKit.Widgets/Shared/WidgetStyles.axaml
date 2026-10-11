@@ -45,4 +45,137 @@
     <Style Selector="Button.quick-launch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource WidgetHoverSurface}" />
     </Style>
+
+    <!-- A quiet control: no fill and no edge until the pointer is on it. This is
+         the widget counterpart of .quick-launch, for buttons that sit inside a
+         list row or beside a heading, where Fluent's resting fill would read as a
+         second box nested in the content. -->
+    <Style Selector="Button.widget-ghost">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="6,3" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetPrimaryForeground}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.widget-ghost:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource WidgetHoverSurface}" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetPrimaryForeground}" />
+    </Style>
+
+    <Style Selector="Button.widget-ghost:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Button.widget-ghost:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource WidgetSecondaryForeground}" />
+    </Style>
+
+    <Style Selector="Button.widget-ghost:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource WidgetSecondaryForeground}" />
+    </Style>
+
+    <!-- A list row in a widget. It is nothing but the surface material at rest,
+         and only picks up a fill while the pointer is on it. Handing it the hover
+         colour permanently, as the task rows used to do, turns every row into a
+         raised card and leaves the hover with nothing left to say. -->
+    <Style Selector="Border.widget-row">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.14" />
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.widget-row:pointerover">
+        <Setter Property="Background" Value="{DynamicResource WidgetHoverSurface}" />
+    </Style>
+
+    <!-- The clickable body of a row. It is a button only so it can be clicked
+         and open the detail panel, and it must look like nothing at all: Fluent
+         would otherwise paint its own fill under the pointer, on top of the
+         row's, so the row would flash twice. -->
+    <Style Selector="Button.row-open">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.row-open /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="Button.row-open:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Button.row-open:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Styles.Resources>
+
+        <!-- A round completion ring, in place of Fluent's square checkbox. The
+             template is ours rather than a tuned copy of Fluent's, so it does not
+             depend on that theme's part names and cannot drift from them. It is
+             applied per control through Theme=, so the checkboxes in the settings
+             window keep their stock look. -->
+        <ControlTheme x:Key="TaskCheckBox" TargetType="CheckBox">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid Width="18" Height="18">
+                        <Border Name="Ring"
+                                CornerRadius="9"
+                                Background="Transparent"
+                                BorderThickness="1.5"
+                                BorderBrush="{DynamicResource WidgetSecondaryForeground}" />
+                        <!-- The tick only ever shows on the filled ring, so it is
+                             white outright rather than a themed ink: the light
+                             variant's selection ink is near-black, which vanishes
+                             on the accent blue. -->
+                        <Path Name="Tick"
+                              Width="9"
+                              Height="9"
+                              Stretch="Uniform"
+                              Data="M 2,4.6 L 4.1,6.7 L 7.2,2.5"
+                              Stroke="#FFFFFFFF"
+                              StrokeThickness="1.7"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              IsVisible="False"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+
+            <Style Selector="^:pointerover /template/ Border#Ring">
+                <Setter Property="BorderBrush" Value="{DynamicResource WidgetPrimaryForeground}" />
+            </Style>
+
+            <Style Selector="^:checked /template/ Border#Ring">
+                <Setter Property="Background" Value="{DynamicResource AccentFill}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentFill}" />
+            </Style>
+
+            <Style Selector="^:checked /template/ Path#Tick">
+                <Setter Property="IsVisible" Value="True" />
+            </Style>
+        </ControlTheme>
+
+    </Styles.Resources>
 </Styles>

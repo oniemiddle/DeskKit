@@ -20,6 +20,29 @@ public static class WidgetText
     public const string StickyNoteDescription = "Widget_StickyNote_Description";
     public const string QuickLaunchName = "Widget_QuickLaunch_Name";
     public const string QuickLaunchDescription = "Widget_QuickLaunch_Description";
+    public const string TickTickName = "Widget_TickTick_Name";
+    public const string TickTickDescription = "Widget_TickTick_Description";
+
+    public const string TickTickSetupHint = "TickTick_SetupHint";
+    public const string TickTickCredentialsRequired = "TickTick_CredentialsRequired";
+    public const string TickTickAuthorizing = "TickTick_Authorizing";
+    public const string TickTickNotConnected = "TickTick_NotConnected";
+    public const string TickTickSyncing = "TickTick_Syncing";
+    public const string TickTickSyncedCount = "TickTick_SyncedCount";
+    public const string TickTickComplete = "TickTick_Complete";
+    public const string TickTickReopen = "TickTick_Reopen";
+    public const string TickTickTaskSaved = "TickTick_TaskSaved";
+    public const string TickTickTaskCompleted = "TickTick_TaskCompleted";
+    public const string TickTickTaskReopened = "TickTick_TaskReopened";
+    public const string TickTickAllLists = "TickTick_AllLists";
+    public const string TickTickOverdue = "TickTick_Overdue";
+    public const string TickTickToday = "TickTick_Today";
+    public const string TickTickUpcoming = "TickTick_Upcoming";
+    public const string TickTickNoDate = "TickTick_NoDate";
+    public const string TickTickCompletedGroup = "TickTick_CompletedGroup";
+    public const string TickTickEdit = "TickTick_Edit";
+    public const string TickTickCancel = "TickTick_Cancel";
+    public const string TickTickNoTasks = "TickTick_NoTasks";
 
     public const string PaperYellow = "Note_Paper_Yellow";
     public const string PaperPink = "Note_Paper_Pink";

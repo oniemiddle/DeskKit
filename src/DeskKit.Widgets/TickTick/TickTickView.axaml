@@ -1,0 +1,195 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ticktick="using:DeskKit.Widgets.TickTick"
+             xmlns:loc="using:DeskKit.Widgets.Localization"
+             x:Class="DeskKit.Widgets.TickTick.TickTickView"
+             x:DataType="ticktick:TickTickViewModel">
+
+    <UserControl.Resources>
+        <!-- One detail panel, shared by every row. It lives here rather than inside
+             the row template because it has to be re-pointed at whichever task was
+             clicked, and a control named inside a template is not reachable from
+             the code-behind. The row sets the content's DataContext before showing
+             it; a flyout in Resources has no parent to inherit one from. -->
+        <Flyout x:Key="TaskDetailFlyout"
+                Placement="Right"
+                ShowMode="Transient">
+            <StackPanel x:DataType="ticktick:TickTickTaskViewModel" Width="300" Spacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <CheckBox VerticalAlignment="Center"
+                              Theme="{StaticResource TaskCheckBox}"
+                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                              Command="{Binding ToggleCompletedCommand}" />
+
+                    <Border Grid.Column="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Padding="7,2"
+                            CornerRadius="4"
+                            Background="{DynamicResource WidgetHoverSurface}"
+                            IsVisible="{Binding HasDue}">
+                        <TextBlock FontSize="11"
+                                   Foreground="{DynamicResource WidgetAccentForeground}"
+                                   Text="{Binding DueLabel}" />
+                    </Border>
+
+                    <Path Grid.Column="2"
+                          Width="12"
+                          Height="12"
+                          Stretch="None"
+                          VerticalAlignment="Center"
+                          Stroke="{DynamicResource WidgetAccentForeground}"
+                          StrokeThickness="1.3"
+                          StrokeLineCap="Round"
+                          StrokeJoin="Round"
+                          Data="M 1.5,0.5 L 1.5,11 M 1.5,1 L 9,1 L 7,3 L 9,5 L 1.5,5"
+                          IsVisible="{Binding HasPriority}" />
+                </Grid>
+
+                <TextBox Text="{Binding Title}"
+                         FontSize="15"
+                         FontWeight="Medium"
+                         PlaceholderText="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_TitlePlaceholder}}" />
+
+                <TextBox Text="{Binding Content}"
+                         AcceptsReturn="True"
+                         MinHeight="64"
+                         MaxHeight="180"
+                         TextWrapping="Wrap"
+                         PlaceholderText="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_ContentPlaceholder}}" />
+
+                <TextBlock Classes="widget-secondary"
+                           FontSize="10"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding HasError}"
+                           Text="{Binding Error}" />
+
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="2" Margin="0,2,0,0">
+                    <TextBlock VerticalAlignment="Center"
+                               Classes="widget-secondary"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               Text="{Binding ListName}" />
+
+                    <Button Grid.Column="1"
+                            Classes="widget-ghost"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource WidgetAccentForeground}"
+                            Content="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_Save}}"
+                            IsEnabled="{Binding !IsBusy}"
+                            Click="OnFlyoutSave" />
+
+                    <Button Grid.Column="2"
+                            Classes="widget-ghost"
+                            Content="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_Cancel}}"
+                            Click="OnFlyoutCancel" />
+                </Grid>
+            </StackPanel>
+        </Flyout>
+    </UserControl.Resources>
+
+    <Grid Margin="12,16,12,10" RowDefinitions="Auto,Auto,*">
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+            <ComboBox MinWidth="96"
+                      MaxWidth="220"
+                      Padding="4,2"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      FontSize="13"
+                      FontWeight="SemiBold"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding Lists}"
+                      SelectedItem="{Binding SelectedList}" />
+            <Button Grid.Column="1"
+                    Classes="widget-ghost"
+                    VerticalAlignment="Center"
+                    Padding="8,3"
+                    FontSize="12"
+                    Content="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_Sync}}"
+                    Command="{Binding SyncCommand}"
+                    IsEnabled="{Binding !IsBusy}" />
+        </Grid>
+
+        <TextBlock Grid.Row="1"
+                   Margin="2,0,0,8"
+                   Classes="widget-secondary"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Text="{Binding StatusMessage}" />
+
+        <Grid Grid.Row="2">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding TaskGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="ticktick:TickTickTaskGroupViewModel">
+                            <StackPanel Margin="0,0,0,10" Spacing="2">
+                                <StackPanel Margin="1,0,0,4"
+                                            Orientation="Horizontal"
+                                            Spacing="6">
+                                    <TextBlock Classes="widget-secondary"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding Title}" />
+                                    <TextBlock Classes="widget-secondary"
+                                               FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.7"
+                                               Text="{Binding Count}" />
+                                </StackPanel>
+
+                                <ItemsControl ItemsSource="{Binding Tasks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="ticktick:TickTickTaskViewModel">
+                                            <Border Classes="widget-row" Padding="8,6" Margin="0,2">
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                    <CheckBox VerticalAlignment="Center"
+                                                              Theme="{StaticResource TaskCheckBox}"
+                                                              IsChecked="{Binding IsCompleted, Mode=OneWay}"
+                                                              Command="{Binding ToggleCompletedCommand}" />
+
+                                                    <Button Grid.Column="1"
+                                                            Classes="row-open"
+                                                            Click="OnRowClicked">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                                <TextBlock Classes="widget-primary"
+                                                                           FontSize="12.5"
+                                                                           FontWeight="Medium"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Text="{Binding Title}" />
+                                                                <TextBlock Classes="widget-secondary"
+                                                                           FontSize="11"
+                                                                           MaxLines="2"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Text="{Binding Content}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="4,0"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource WidgetAccentForeground}"
+                                                                       Text="{Binding DueLabel}" />
+                                                        </Grid>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Classes="widget-secondary"
+                       FontSize="12"
+                       IsVisible="{Binding IsEmpty}"
+                       Text="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_NoTasks}}" />
+        </Grid>
+    </Grid>
+</UserControl>

@@ -2,6 +2,7 @@ using DeskKit.Core.Abstractions;
 using DeskKit.Widgets.Clock;
 using DeskKit.Widgets.QuickLaunch;
 using DeskKit.Widgets.StickyNote;
+using DeskKit.Widgets.TickTick;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DeskKit.Widgets;
@@ -30,6 +31,7 @@ public static class BuiltInWidgets
             new ClockWidgetProvider(),
             new StickyNoteWidgetProvider(),
             new QuickLaunchWidgetProvider(iconLoader),
+            new TickTickWidgetProvider(),
         ];
     }
 
@@ -46,6 +48,7 @@ public static class BuiltInWidgets
         services.AddSingleton<IWidgetProvider, StickyNoteWidgetProvider>();
         services.AddSingleton<IWidgetProvider>(provider =>
             new QuickLaunchWidgetProvider(provider.GetRequiredService<IShellIconLoader>()));
+        services.AddSingleton<IWidgetProvider, TickTickWidgetProvider>();
 
         return services;
     }

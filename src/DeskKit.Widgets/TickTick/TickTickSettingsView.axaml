@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ticktick="using:DeskKit.Widgets.TickTick"
+             xmlns:loc="using:DeskKit.Widgets.Localization"
+             x:Class="DeskKit.Widgets.TickTick.TickTickSettingsView"
+             x:DataType="ticktick:TickTickViewModel">
+    <StackPanel Spacing="10">
+        <TextBlock FontWeight="SemiBold" Text="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_SettingsTitle}}" />
+        <TextBlock Opacity="0.72" TextWrapping="Wrap" Text="{Binding SetupHint}" />
+        <TextBox Text="{Binding ClientId}"
+                 Watermark="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_ClientId}}" />
+        <TextBox Text="{Binding ClientSecret}"
+                 PasswordChar="●"
+                 Watermark="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_ClientSecret}}" />
+        <TextBox Text="{Binding RedirectUri}"
+                 Watermark="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_RedirectUri}}" />
+        <TextBlock Classes="widget-secondary" FontSize="11" TextWrapping="Wrap" Text="{Binding StatusMessage}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_Connect}}"
+                    Command="{Binding ConnectCommand}"
+                    IsEnabled="{Binding !IsBusy}" />
+            <Button Content="{Translate {x:Static loc:WidgetLanguage+Keys.TickTick_Disconnect}}"
+                    Command="{Binding DisconnectCommand}"
+                    IsVisible="{Binding IsConnected}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

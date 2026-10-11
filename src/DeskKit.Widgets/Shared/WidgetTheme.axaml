@@ -22,6 +22,10 @@
             <SolidColorBrush x:Key="WidgetHoverSurface">#33FFFFFF</SolidColorBrush>
             <SolidColorBrush x:Key="WidgetSelectionSurface">#552563EB</SolidColorBrush>
             <SolidColorBrush x:Key="WidgetSelectionForeground">#FFFFFFFF</SolidColorBrush>
+            <!-- The accent the brand blue becomes when it is read as text on the
+                 dark card: #2563EB itself sits too close to the surface to be
+                 legible at caption sizes. -->
+            <SolidColorBrush x:Key="WidgetAccentForeground">#FF6E9BFF</SolidColorBrush>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -30,6 +34,7 @@
             <SolidColorBrush x:Key="WidgetHoverSurface">#1F000000</SolidColorBrush>
             <SolidColorBrush x:Key="WidgetSelectionSurface">#452563EB</SolidColorBrush>
             <SolidColorBrush x:Key="WidgetSelectionForeground">#FF1F2937</SolidColorBrush>
+            <SolidColorBrush x:Key="WidgetAccentForeground">#FF2563EB</SolidColorBrush>
         </ResourceDictionary>
 
     </ResourceDictionary.ThemeDictionaries>

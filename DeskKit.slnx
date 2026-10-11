@@ -5,9 +5,11 @@
     <Project Path="src/DeskKit.Persistence/DeskKit.Persistence.csproj" />
     <Project Path="src/DeskKit.Platform/DeskKit.Platform.csproj" />
     <Project Path="src/DeskKit.Platform.Abstractions/DeskKit.Platform.Abstractions.csproj" />
-    <Project Path="src/DeskKit.Platform.Windows/DeskKit.Platform.Windows.csproj" />
     <Project Path="src/DeskKit.Runtime/DeskKit.Runtime.csproj" />
     <Project Path="src/DeskKit.Widgets/DeskKit.Widgets.csproj" />
+  </Folder>
+  <Folder Name="/src/Native/">
+    <Project Path="src/DeskKit.Platform.Windows/DeskKit.Platform.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DeskKit.App.Tests/DeskKit.App.Tests.csproj" />

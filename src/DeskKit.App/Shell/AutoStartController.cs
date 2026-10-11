@@ -1,5 +1,6 @@
 ﻿using DeskKit.Core.Models;
 using DeskKit.Platform;
+using DeskKit.Runtime;
 using Microsoft.Extensions.Logging;
 
 namespace DeskKit.App.Shell;
@@ -21,8 +22,23 @@ namespace DeskKit.App.Shell;
 /// needed.
 /// </para>
 /// </remarks>
-internal sealed class AutoStartController(IAutoStartService autoStart, ILogger logger)
+internal sealed class AutoStartController(
+    IAutoStartService autoStart,
+    ILogger<AutoStartController> logger)
 {
+    /// <summary>
+    /// Brings the shell's stored preference in line with this machine, storing the
+    /// correction so that the settings window shows what is true here rather than what
+    /// travelled with the profile.
+    /// </summary>
+    public void Reconcile(IShellFacade shell)
+    {
+        ArgumentNullException.ThrowIfNull(shell);
+
+        if (Reconcile(shell.State.Settings) is { } corrected)
+            shell.ApplySettings(corrected);
+    }
+
     /// <summary>
     /// The settings a startup should store in place of the ones it read, or null when
     /// the stored preference already matches this machine.

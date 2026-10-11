@@ -1,4 +1,4 @@
-﻿using DeskKit.App.Shell;
+using DeskKit.App.Shell;
 using DeskKit.Core.Models;
 using DeskKit.Platform;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,7 +17,7 @@ public sealed class AutoStartControllerTests
     public void AStoredPreferenceThatDisagreesWithTheRegistryIsCorrected()
     {
         var controller = new AutoStartController(
-            new FakeAutoStart { IsSupported = true, IsEnabled = false }, NullLogger.Instance);
+            new FakeAutoStart { IsSupported = true, IsEnabled = false }, NullLogger<AutoStartController>.Instance);
 
         var corrected = controller.Reconcile(new AppSettings { StartWithWindows = true });
 
@@ -29,16 +29,31 @@ public sealed class AutoStartControllerTests
     public void AStoredPreferenceThatAgreesWithTheRegistryIsLeftAlone()
     {
         var controller = new AutoStartController(
-            new FakeAutoStart { IsSupported = true, IsEnabled = true }, NullLogger.Instance);
+            new FakeAutoStart { IsSupported = true, IsEnabled = true }, NullLogger<AutoStartController>.Instance);
 
         Assert.Null(controller.Reconcile(new AppSettings { StartWithWindows = true }));
+    }
+
+    [Fact]
+    public void TheCorrectionIsStoredOnTheShell()
+    {
+        var controller = new AutoStartController(
+            new FakeAutoStart { IsSupported = true, IsEnabled = false }, NullLogger<AutoStartController>.Instance);
+        var settings = new AppSettings { StartWithWindows = true };
+        var shell = new FakeShell(settings);
+
+        controller.Reconcile(shell);
+
+        // Stored, not merely decided: the settings window reads the shell, so a correction
+        // that never reached it would show the machine as it is not.
+        Assert.False(shell.State.Settings.StartWithWindows);
     }
 
     [Fact]
     public void APlatformWithoutAutostartKeepsWhateverWasStored()
     {
         var controller = new AutoStartController(
-            new NullAutoStartService(), NullLogger.Instance);
+            new NullAutoStartService(), NullLogger<AutoStartController>.Instance);
 
         Assert.Null(controller.Reconcile(new AppSettings { StartWithWindows = true }));
         Assert.Null(controller.Reconcile(new AppSettings { StartWithWindows = false }));
@@ -48,7 +63,7 @@ public sealed class AutoStartControllerTests
     public void ChoosingToStartWithWindowsRegistersIt()
     {
         var service = new FakeAutoStart { IsSupported = true, IsEnabled = false };
-        var controller = new AutoStartController(service, NullLogger.Instance);
+        var controller = new AutoStartController(service, NullLogger<AutoStartController>.Instance);
 
         controller.Apply(new AppSettings { StartWithWindows = true });
 
@@ -65,7 +80,7 @@ public sealed class AutoStartControllerTests
             RefusesChanges = true,
         };
 
-        var controller = new AutoStartController(service, NullLogger.Instance);
+        var controller = new AutoStartController(service, NullLogger<AutoStartController>.Instance);
 
         // Refused by policy or permissions. The preference is still stored by the shell,
         // so this must not throw.

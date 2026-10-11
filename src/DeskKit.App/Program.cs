@@ -11,7 +11,7 @@ internal static class Program
         AppBuilder.Configure<App>()
             .UsePlatformDetect()
 #if DEBUG
-            .WithDeveloperTools()
+            // .WithDeveloperTools()
 #endif
             .WithInterFont()
             .LogToTrace();

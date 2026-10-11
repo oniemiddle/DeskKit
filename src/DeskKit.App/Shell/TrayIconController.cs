@@ -29,7 +29,7 @@ internal sealed class TrayIconController(
     WidgetCatalog catalog,
     ShellAssets assets,
     LanguageService language,
-    Action openSettings) : IDisposable
+    SettingsWindowController settingsWindow) : IDisposable
 {
     private TrayIcon? _icon;
     private NativeMenuItem? _toggle;
@@ -72,7 +72,7 @@ internal sealed class TrayIconController(
 
         var settings = new NativeMenuItem();
         AppLanguage.Instance.Tray_Settings.SubscribeAction(text => settings.Header = text);
-        settings.Click += (_, _) => openSettings();
+        settings.Click += (_, _) => settingsWindow.Open(widget: null);
         menu.Add(settings);
 
         menu.Add(new NativeMenuItemSeparator());

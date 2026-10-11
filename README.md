@@ -255,6 +255,14 @@ hands the rounded corners and the drop shadow to the platform, since neither the
 inset nor the card's own shadow has anything left to do. Without one, the inset
 and the card-drawn shadow come back.
 
+What does not change is that the widget content covers the card's whole
+rectangle. Content that paints its own opaque surface — the sticky note's paper
+is the only widget that does — therefore fills the card too and leaves its shape
+to the card, which clips it to a rounded outline, or to the platform when a
+material is in play. A `CornerRadius` on the content itself would be a second,
+differently-sized outline: over a material the mica shows through the sliver
+between the two and reads as a dark fringe along the corners.
+
 The card also stops painting its own surface over a material
 (`ThemeService.CardBrushFor` returns nothing). How much of the material survives is
 exactly `1 - alpha`, so **any** tint is a direct subtraction from the surface the

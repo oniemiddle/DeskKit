@@ -5,7 +5,14 @@
              x:Class="DeskKit.Widgets.StickyNote.StickyNoteView"
              x:DataType="note:StickyNoteViewModel">
 
-    <Border Background="{Binding PaperBrush}" CornerRadius="14">
+    <!-- The paper must not round itself. Its shape comes from the card, which is
+         clipped to a rounded outline when there is no material, and from the
+         window's own platform rounding when a material fills it. A radius here
+         would be a second, differently-sized outline: over a material the mica
+         shows through the sliver between the two and reads as a dark fringe along
+         the corners. It only looked right before because both radii happened to
+         be 14. -->
+    <Border Background="{Binding PaperBrush}">
         <Grid Margin="16,18,16,14" RowDefinitions="Auto,*">
             <TextBox Grid.Row="0"
                      Classes="plain"

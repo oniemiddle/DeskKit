@@ -20,6 +20,7 @@ public sealed partial class QuickLaunchViewModel : WidgetViewModel
 
     private readonly IShellIconLoader _iconLoader;
     private bool _loading = true;
+    private bool _started;
 
     public QuickLaunchViewModel(WidgetContext context, IShellIconLoader iconLoader)
         : base(context)
@@ -52,7 +53,11 @@ public sealed partial class QuickLaunchViewModel : WidgetViewModel
     public override Control? CreateSettingsView() => new QuickLaunchSettingsView { DataContext = this };
 
     /// <summary>Icons are fetched once the widget is actually on screen.</summary>
-    public override void Start() => _ = LoadIconsAsync();
+    public override void Start()
+    {
+        _started = true;
+        _ = LoadIconsAsync();
+    }
 
     /// <summary>Adds dropped or picked paths, ignoring duplicates.</summary>
     public void AddPaths(IEnumerable<string> paths)
@@ -75,8 +80,16 @@ public sealed partial class QuickLaunchViewModel : WidgetViewModel
                 Target = path,
             };
 
-            Items.Add(CreateItemViewModel(item));
+            var viewModel = CreateItemViewModel(item);
+            Items.Add(viewModel);
             added = true;
+
+            // The one pass Start makes has already happened for a widget that is on
+            // screen, and this is the path a shortcut added later takes — dropped
+            // from Explorer, or added from the settings window. Without this it would
+            // keep an empty picture for the rest of the session.
+            if (_started)
+                _ = viewModel.EnsureIconAsync();
         }
 
         if (!added)

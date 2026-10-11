@@ -4,50 +4,61 @@
              xmlns:loc="using:DeskKit.Widgets.Localization"
              x:Class="DeskKit.Widgets.QuickLaunch.QuickLaunchView"
              x:DataType="ql:QuickLaunchViewModel">
-    <Grid Margin="12,18">
-        <ItemsControl ItemsSource="{Binding Items}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+    <!-- A shortcut can be dropped anywhere on the card, so the whole surface has to
+         be hit-testable, and a panel with no background is not: a drop over the empty
+         part of the card is offered to whatever sits behind the widget instead,
+         leaving only the tiles and their labels — the sliver something is actually
+         painted on — able to accept one. A transparent background costs nothing
+         visually and gives the drop target the card's own shape.
 
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="ql:QuickLaunchItemViewModel">
-                    <Button Classes="quick-launch" Command="{Binding LaunchCommand}">
-                        <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Open}}"
-                                          Command="{Binding LaunchCommand}" />
-                                <MenuItem Header="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Remove}}"
-                                          Command="{Binding RemoveFromWidgetCommand}" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
+         The inset stays on the inner grid, so the tiles still clear the drag strip
+         that overlays the card's top 16 pixels. -->
+    <Grid Background="Transparent">
+        <Grid Margin="12,18">
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
 
-                        <StackPanel Width="{Binding IconSize}" Spacing="4">
-                            <Image Width="{Binding IconSize}"
-                                   Height="{Binding IconSize}"
-                                   HorizontalAlignment="Center"
-                                   Source="{Binding Icon}" />
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="ql:QuickLaunchItemViewModel">
+                        <Button Classes="quick-launch" Command="{Binding LaunchCommand}">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Open}}"
+                                              Command="{Binding LaunchCommand}" />
+                                    <MenuItem Header="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_Remove}}"
+                                              Command="{Binding RemoveFromWidgetCommand}" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
 
-                            <TextBlock Classes="widget-secondary"
-                                       FontSize="10"
-                                       TextAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       Text="{Binding DisplayName}" />
-                        </StackPanel>
-                    </Button>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                            <StackPanel Width="{Binding IconSize}" Spacing="4">
+                                <Image Width="{Binding IconSize}"
+                                       Height="{Binding IconSize}"
+                                       HorizontalAlignment="Center"
+                                       Source="{Binding Icon}" />
 
-        <TextBlock HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Classes="widget-secondary"
-                   FontSize="12"
-                   IsVisible="{Binding IsEmpty}"
-                   TextAlignment="Center"
-                   TextWrapping="Wrap"
-                   Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_DropHint}}" />
+                                <TextBlock Classes="widget-secondary"
+                                           FontSize="10"
+                                           TextAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           Text="{Binding DisplayName}" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Classes="widget-secondary"
+                       FontSize="12"
+                       IsVisible="{Binding IsEmpty}"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{Translate {x:Static loc:WidgetLanguage+Keys.Launch_DropHint}}" />
+        </Grid>
     </Grid>
 </UserControl>

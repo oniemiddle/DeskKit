@@ -380,8 +380,9 @@ of the card that is not itself interactive (a button, a text box).
 
 The strip is an **overlay, not a reserved row**: the widget content keeps the
 whole card and the strip floats on top of the first 16px of it. Its background is
-transparent for exactly that reason — anything else would paint over the content
-underneath. The only thing it draws is a short rounded bar centred in it, which
+transparent for two reasons — anything opaque would paint over the content
+underneath, and a surface that paints nothing at all is not hit-testable, so the
+strip could not be grabbed either. The only thing it draws is a short rounded bar centred in it, which
 is pure decoration: absent at rest, faded in while the pointer is over the
 widget, and painted in the accent colour while the widget is being moved. The bar
 carries a small drop shadow, because a translucent white pill on a light
@@ -788,6 +789,15 @@ Set `PreventActivation: true` in the descriptor for any widget that does not
 need the keyboard: such widgets are given `WS_EX_NOACTIVATE` so clicking them
 does not pull focus away from the application the user is working in. Only the
 sticky note leaves it false.
+
+A view only takes input where it actually paints. A panel whose `Background` is
+unset is not hit-testable, so the parts of a widget that draw nothing belong to
+the window instead — the card can still be dragged from them — but nothing
+beneath a **drop target** either: a shortcut dropped on an unpainted area is
+offered to whatever is behind the widget and never reaches the view. The launcher
+therefore gives its root a transparent background. It costs nothing to look at and
+it is what makes the whole card accept a shortcut, rather than only the tiles and
+the labels.
 
 ## Icon asset
 

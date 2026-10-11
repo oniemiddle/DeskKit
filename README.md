@@ -567,7 +567,8 @@ tests/
   DeskKit.Platform.Tests/
   DeskKit.App.Tests/
 scripts/
-  New-AppIcon.ps1      regenerates Assets/deskkit.ico from scratch
+  AppIcon/             the light and dark master images the app icon is built from
+  New-AppIcon.ps1      builds Assets/deskkit-{light,dark}.ico from those masters
 ```
 
 Dependencies point one way: `Core` references nothing else; `Runtime`,
@@ -801,11 +802,18 @@ the labels.
 
 ## Icon asset
 
-`src/DeskKit.App/Assets/deskkit.ico` is generated, not hand-drawn:
+The application icon is generated from two square master images, one for each
+theme, rather than hand-drawn frame by frame:
 
 ```powershell
 pwsh -File scripts/New-AppIcon.ps1
 ```
+
+The masters live in `scripts/AppIcon/`. The script rounds each of them to the
+Windows 11 squircle and writes every size Windows asks a task bar or a title bar
+for — 16 through 256 — into `src/DeskKit.App/Assets/deskkit-light.ico` and
+`deskkit-dark.ico`. `ShellAssets` picks the one that matches the theme, and the
+tray icon and the settings window swap to it in place when the theme changes.
 
 ## License
 

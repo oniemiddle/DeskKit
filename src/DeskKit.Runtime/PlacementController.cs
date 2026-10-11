@@ -119,6 +119,85 @@ internal sealed class PlacementController(WorkspaceState workspace)
         return result.Position - offset;
     }
 
+    /// <summary>
+    /// Applies magnetism to a proposed resize and highlights whatever the dragged
+    /// edges snapped to, including the widget being resized.
+    /// </summary>
+    /// <remarks>
+    /// As with a drag, the comparison happens in card space, so the transparent surface
+    /// margin is taken off the proposal and out of the minimum before the edges are
+    /// matched, and put back on the result.
+    /// </remarks>
+    /// <param name="proposed">The window rectangle the pointer alone asks for.</param>
+    /// <param name="edges">Which edges the user is dragging.</param>
+    /// <param name="minimum">The smallest window the widget may take.</param>
+    public PixelRect SnapResize(
+        IReadOnlyList<IPlaceableWidget> widgets,
+        IPlaceableWidget moving,
+        PixelRect proposed,
+        WidgetEdges edges,
+        PixelSize minimum,
+        double surfaceMargin)
+    {
+        ArgumentNullException.ThrowIfNull(widgets);
+        ArgumentNullException.ThrowIfNull(moving);
+
+        if (!moving.TryGetCardSize(out _, out var movingScaling))
+        {
+            ClearHighlights(widgets);
+            return proposed;
+        }
+
+        var offset = SurfaceOffset(surfaceMargin, movingScaling);
+
+        var candidates = new List<PixelRect>(widgets.Count);
+        var owners = new List<IPlaceableWidget>(widgets.Count);
+
+        foreach (var other in widgets)
+        {
+            if (ReferenceEquals(other, moving) || !other.IsVisible)
+                continue;
+
+            if (!other.TryGetCardSize(out var otherSize, out var otherScaling))
+                continue;
+
+            candidates.Add(new PixelRect(
+                other.Position + SurfaceOffset(surfaceMargin, otherScaling), otherSize));
+            owners.Add(other);
+        }
+
+        if (candidates.Count == 0)
+        {
+            ClearHighlights(widgets);
+            return proposed;
+        }
+
+        var minimumCard = new PixelSize(
+            Math.Max(0, minimum.Width - (2 * offset.X)),
+            Math.Max(0, minimum.Height - (2 * offset.Y)));
+
+        var result = WidgetSnapEngine.SnapResize(
+            Inset(proposed, offset), edges, candidates, minimumCard);
+
+        ClearHighlights(widgets);
+
+        if (result.Snapped)
+        {
+            moving.SetSnapHighlight(result.Glow);
+
+            foreach (var index in result.Neighbours)
+            {
+                if (index < 0 || index >= owners.Count)
+                    continue;
+
+                owners[index].SetSnapHighlight(
+                    WidgetSnapEngine.GlowSegments(candidates[index], [result.Rect]));
+            }
+        }
+
+        return Expand(result.Rect, offset);
+    }
+
     public static void ClearHighlights(IReadOnlyList<IPlaceableWidget> widgets)
     {
         ArgumentNullException.ThrowIfNull(widgets);
@@ -160,4 +239,14 @@ internal sealed class PlacementController(WorkspaceState workspace)
         var offset = (int)Math.Round(surfaceMargin * scaling);
         return new PixelVector(offset, offset);
     }
+
+    /// <summary>Takes the surface margin off every side of a window rectangle.</summary>
+    private static PixelRect Inset(PixelRect rect, PixelVector offset) =>
+        new(rect.X + offset.X, rect.Y + offset.Y,
+            rect.Width - (2 * offset.X), rect.Height - (2 * offset.Y));
+
+    /// <summary>Puts the surface margin back on every side of a card rectangle.</summary>
+    private static PixelRect Expand(PixelRect rect, PixelVector offset) =>
+        new(rect.X - offset.X, rect.Y - offset.Y,
+            rect.Width + (2 * offset.X), rect.Height + (2 * offset.Y));
 }

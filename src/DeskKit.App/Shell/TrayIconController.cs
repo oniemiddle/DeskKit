@@ -111,6 +111,10 @@ internal sealed class TrayIconController(
             var icons = TrayIcon.GetIcons(application) ?? new TrayIcons();
             icons.Add(_icon);
             TrayIcon.SetIcons(application, icons);
+
+            // The icon is one of a themed pair, and the notification area is not repainted
+            // for us: the drawing has to be swapped in place when the theme does.
+            application.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
     }
 
@@ -136,23 +140,31 @@ internal sealed class TrayIconController(
         language.CultureChanged -= OnCultureChanged;
         shell.StateChanged -= OnShellStateChanged;
 
+        if (Application.Current is { } application)
+        {
+            application.ActualThemeVariantChanged -= OnThemeVariantChanged;
+
+            if (_icon is not null && TrayIcon.GetIcons(application) is { } icons)
+                icons.Remove(_icon);
+        }
+
         if (_icon is null)
             return;
 
         _icon.IsVisible = false;
-
-        if (Application.Current is { } application
-            && TrayIcon.GetIcons(application) is { } icons)
-        {
-            icons.Remove(_icon);
-        }
-
         _icon.Dispose();
         _icon = null;
         _toggle = null;
     }
 
     private void OnCultureChanged(object? sender, EventArgs e) => RefreshToggle();
+
+    /// <summary>Wears the icon that belongs to the theme that is now in effect.</summary>
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        if (_icon is not null)
+            _icon.Icon = assets.Icon;
+    }
 
     /// <summary>Follows the stored preference, wherever it was changed from.</summary>
     private void OnShellStateChanged(object? sender, EventArgs e)

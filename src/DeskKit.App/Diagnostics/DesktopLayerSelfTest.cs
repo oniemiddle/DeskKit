@@ -358,7 +358,7 @@ internal sealed partial class DesktopLayerSelfTest
 
             // Matches a real widget, so the reported geometry is comparable.
             CardMargin = new Thickness(WidgetWindow.GlowMargin),
-            CardCornerRadius = new CornerRadius(14),
+            CardCornerRadius = new CornerRadius(8),
             WidgetContent = new TextBlock
             {
                 Text = "DeskKit desktop-layer probe",

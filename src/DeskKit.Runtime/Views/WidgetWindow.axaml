@@ -26,9 +26,9 @@
         <Border Name="CardBorder"
                 Margin="16"
                 Background="#FF2563EB"
-                CornerRadius="14"
+                CornerRadius="8"
                 ClipToBounds="True"
-                BoxShadow="0 8 24 0 #55000000">
+                BoxShadow="0 2 8 0 #40000000">
             <Panel>
                 <ContentPresenter Name="ContentHost" />
 

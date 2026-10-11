@@ -1,6 +1,9 @@
-﻿using DeskKit.App.Services;
+﻿using Avalonia;
+using Avalonia.Media;
+using DeskKit.App.Services;
 using DeskKit.App.ViewModels;
 using DeskKit.App.Views;
+using DeskKit.Core.Abstractions;
 using DeskKit.Core.Models;
 using DeskKit.Runtime;
 
@@ -19,7 +22,8 @@ internal sealed class SettingsWindowController(
     IShellFacade shell,
     ShellAssets assets,
     LanguageService language,
-    WidgetCatalog catalog)
+    WidgetCatalog catalog,
+    IWindowMaterialService materials)
 {
     private SettingsWindow? _window;
 
@@ -53,9 +57,35 @@ internal sealed class SettingsWindowController(
             DataContext = new SettingsViewModel(shell, language, catalog),
         };
 
+        // The same backdrop the widgets get, decided by the same policy: the window
+        // body turns transparent so the material shows through, and on a build with
+        // no material the window stays an ordinary opaque one. The hint has to be
+        // named before the platform window exists, hence this running at creation.
+        var material = materials.Resolve(materials.Default);
+        if (material.FillsWindow())
+        {
+            window.Background = Brushes.Transparent;
+            materials.Prepare(window, material);
+        }
+
+        // The title bar shows one of a themed pair of icons, and a theme change made here
+        // in the settings window does not rebuild the window, so the drawing is swapped in
+        // place for as long as it lives.
+        void OnThemeVariantChanged(object? sender, EventArgs e) => window.Icon = assets.Icon;
+
+        if (Application.Current is { } application)
+            application.ActualThemeVariantChanged += OnThemeVariantChanged;
+
         // Closing must not end the process, and the next Open has to build a new one
         // rather than reuse a closed window.
-        window.Closed += (_, _) => _window = null;
+        window.Closed += (_, _) =>
+        {
+            if (Application.Current is { } app)
+                app.ActualThemeVariantChanged -= OnThemeVariantChanged;
+
+            _window = null;
+        };
+
         return window;
     }
 }

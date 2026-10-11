@@ -8,6 +8,8 @@
     "Widgets": "组件"
   },
   "Appearance": {
+    "GroupPersonalization": "个性化",
+    "GroupAnimation": "动画",
     "Theme": "主题",
     "Language": "语言",
     "ShowWidgets": "显示桌面组件",

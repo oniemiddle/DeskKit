@@ -38,6 +38,28 @@ public readonly record struct WidgetSnapResult(
     public bool Snapped => SnappedX || SnappedY;
 }
 
+/// <summary>Outcome of applying magnetic snapping to a widget being resized.</summary>
+/// <param name="Rect">The rectangle the widget should take, in physical pixels.</param>
+/// <param name="SnappedX">True when a vertical edge was pulled onto a snap.</param>
+/// <param name="SnappedY">True when a horizontal edge was pulled onto a snap.</param>
+/// <param name="Neighbours">
+/// Indexes into the list passed to <see cref="WidgetSnapEngine.SnapResize"/> of the
+/// widgets the resized one snapped to.
+/// </param>
+/// <param name="Glow">
+/// The stretches of the resized widget's edges that should light up, derived from
+/// where it actually overlaps the widgets it snapped to.
+/// </param>
+public readonly record struct WidgetResizeSnapResult(
+    PixelRect Rect,
+    bool SnappedX,
+    bool SnappedY,
+    IReadOnlyList<int> Neighbours,
+    IReadOnlyList<WidgetGlowSegment> Glow)
+{
+    public bool Snapped => SnappedX || SnappedY;
+}
+
 /// <summary>
 /// Magnetic alignment for dragged widgets.
 /// <para>
@@ -193,6 +215,189 @@ public static class WidgetSnapEngine
         void ConsiderY(int candidate, int source)
         {
             var distance = Math.Abs(candidate - moving.Y);
+            if (distance > threshold)
+                return;
+
+            if (distance < yDistance)
+            {
+                yDistance = distance;
+                yValue = candidate;
+                yIndexes.Clear();
+                yIndexes.Add(source);
+            }
+            else if (distance == yDistance && yValue == candidate && !yIndexes.Contains(source))
+            {
+                yIndexes.Add(source);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Magnetic alignment for a widget being resized by one of its edges.
+    /// <para>
+    /// Unlike a drag, a resize keeps the opposite edge still, so only the dragged
+    /// edges are offered a snap and the widget grows or shrinks towards the
+    /// neighbour instead of sliding onto it. Each dragged edge gets the same two
+    /// candidates a drag would produce against that neighbour: <b>aligned</b>
+    /// with the matching edge, and <b>adjacent</b> to it at the configured gap —
+    /// the position a drag would have settled the two widgets into. Adjacency
+    /// needs the two widgets to overlap on the other axis, so a resize is not
+    /// caught by an unrelated widget elsewhere on the desktop.
+    /// </para>
+    /// <para>
+    /// A candidate that would shrink the widget below <paramref name="minimum"/>
+    /// is ignored, so snapping can never fight the minimum-size clamp.
+    /// </para>
+    /// </summary>
+    public static WidgetResizeSnapResult SnapResize(
+        PixelRect moving,
+        WidgetEdges edges,
+        IReadOnlyList<PixelRect> others,
+        PixelSize minimum,
+        int gap = DefaultGap,
+        int threshold = DefaultThreshold,
+        int proximity = DefaultProximity)
+    {
+        ArgumentNullException.ThrowIfNull(others);
+
+        var unchanged = new WidgetResizeSnapResult(moving, false, false, [], []);
+
+        if (others.Count == 0 || threshold <= 0)
+            return unchanged;
+
+        var dragLeft = edges.HasFlag(WidgetEdges.Left);
+        var dragRight = edges.HasFlag(WidgetEdges.Right);
+        var dragTop = edges.HasFlag(WidgetEdges.Top);
+        var dragBottom = edges.HasFlag(WidgetEdges.Bottom);
+
+        // Only one edge per axis moves. When both arrive, the negated side wins,
+        // because that is the one that carries the origin and so the one whose
+        // position is comparable across frames.
+        if (dragLeft)
+            dragRight = false;
+        else if (dragRight)
+            dragLeft = false;
+
+        if (dragTop)
+            dragBottom = false;
+        else if (dragBottom)
+            dragTop = false;
+
+        if (!dragLeft && !dragRight && !dragTop && !dragBottom)
+            return unchanged;
+
+        var xIndexes = new List<int>();
+        int? xValue = null;
+        var xDistance = int.MaxValue;
+        var xCurrent = dragLeft ? moving.X : moving.Right;
+
+        var yIndexes = new List<int>();
+        int? yValue = null;
+        var yDistance = int.MaxValue;
+        var yCurrent = dragTop ? moving.Y : moving.Bottom;
+
+        for (var index = 0; index < others.Count; index++)
+        {
+            var other = others[index];
+
+            var gapX = EdgeDistance(moving.X, moving.Right, other.X, other.Right);
+            var gapY = EdgeDistance(moving.Y, moving.Bottom, other.Y, other.Bottom);
+
+            if (gapX > proximity || gapY > proximity)
+                continue;
+
+            if (dragLeft)
+            {
+                // Sharing the neighbour's left edge, or stopping the gap short of
+                // its right one — which is where a drag would have left them.
+                if (moving.Right - other.X >= minimum.Width)
+                    ConsiderX(other.X, index);
+
+                if (gapY == 0 && moving.Right - (other.Right + gap) >= minimum.Width)
+                    ConsiderX(other.Right + gap, index);
+            }
+            else if (dragRight)
+            {
+                if (other.Right - moving.X >= minimum.Width)
+                    ConsiderX(other.Right, index);
+
+                if (gapY == 0 && (other.X - gap) - moving.X >= minimum.Width)
+                    ConsiderX(other.X - gap, index);
+            }
+
+            if (dragTop)
+            {
+                if (moving.Bottom - other.Y >= minimum.Height)
+                    ConsiderY(other.Y, index);
+
+                if (gapX == 0 && moving.Bottom - (other.Bottom + gap) >= minimum.Height)
+                    ConsiderY(other.Bottom + gap, index);
+            }
+            else if (dragBottom)
+            {
+                if (other.Bottom - moving.Y >= minimum.Height)
+                    ConsiderY(other.Bottom, index);
+
+                if (gapX == 0 && (other.Y - gap) - moving.Y >= minimum.Height)
+                    ConsiderY(other.Y - gap, index);
+            }
+        }
+
+        // Every widget the resize snapped to is worth highlighting, so ties are
+        // collected rather than letting the first one win.
+        var neighbours = new List<int>(xIndexes.Count + yIndexes.Count);
+        foreach (var index in xIndexes)
+            neighbours.Add(index);
+
+        foreach (var index in yIndexes)
+        {
+            if (!neighbours.Contains(index))
+                neighbours.Add(index);
+        }
+
+        neighbours.Sort();
+
+        var left = dragLeft ? xValue ?? moving.X : moving.X;
+        var right = dragRight ? xValue ?? moving.Right : moving.Right;
+        var top = dragTop ? yValue ?? moving.Y : moving.Y;
+        var bottom = dragBottom ? yValue ?? moving.Bottom : moving.Bottom;
+
+        var settled = new PixelRect(
+            new PixelPoint(left, top), new PixelSize(right - left, bottom - top));
+
+        var settledNeighbours = new List<PixelRect>(neighbours.Count);
+        foreach (var index in neighbours)
+            settledNeighbours.Add(others[index]);
+
+        return new WidgetResizeSnapResult(
+            settled,
+            xValue.HasValue,
+            yValue.HasValue,
+            neighbours,
+            GlowSegments(settled, settledNeighbours, proximity));
+
+        void ConsiderX(int candidate, int source)
+        {
+            var distance = Math.Abs(candidate - xCurrent);
+            if (distance > threshold)
+                return;
+
+            if (distance < xDistance)
+            {
+                xDistance = distance;
+                xValue = candidate;
+                xIndexes.Clear();
+                xIndexes.Add(source);
+            }
+            else if (distance == xDistance && xValue == candidate && !xIndexes.Contains(source))
+            {
+                xIndexes.Add(source);
+            }
+        }
+
+        void ConsiderY(int candidate, int source)
+        {
+            var distance = Math.Abs(candidate - yCurrent);
             if (distance > threshold)
                 return;
 

@@ -8,6 +8,8 @@
     "Widgets": "Widgets"
   },
   "Appearance": {
+    "GroupPersonalization": "Personalization",
+    "GroupAnimation": "Animation",
     "Theme": "Theme",
     "Language": "Language",
     "ShowWidgets": "Show desktop widgets",

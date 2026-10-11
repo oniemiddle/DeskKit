@@ -40,7 +40,9 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
-    <Style Selector="Button.quick-launch:pointerover /template/ ContentPresenter">
+    <!-- Named part so this beats Fluent's own :pointerover resource, which now
+         carries the settings window's control hover colour. -->
+    <Style Selector="Button.quick-launch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource WidgetHoverSurface}" />
     </Style>
 </Styles>

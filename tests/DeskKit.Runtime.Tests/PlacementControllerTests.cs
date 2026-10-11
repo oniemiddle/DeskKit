@@ -127,6 +127,101 @@ public sealed class PlacementControllerTests
             result.X);
     }
 
+    // ---- Resizing ---------------------------------------------------------
+
+    private static readonly PixelSize SmallMinimum = new(1, 1);
+
+    [Fact]
+    public void AResizeWithNothingToSnapToKeepsTheProposedRectangle()
+    {
+        var controller = Create();
+        var moving = new FakeWidget(new PixelPoint(0, 0), new PixelSize(292, 60));
+        var proposed = new PixelRect(200, 420, 290, 60);
+
+        var result = controller.SnapResize(
+            [moving], moving, proposed, WidgetEdges.Right, SmallMinimum, NoMargin);
+
+        Assert.Equal(proposed, result);
+        Assert.Null(moving.Highlight);
+    }
+
+    [Fact]
+    public void AResizedEdgeStopsAtTheGapBesideTheNeighbour()
+    {
+        var controller = Create();
+        var neighbour = new FakeWidget(new PixelPoint(500, 400), new PixelSize(200, 100));
+        var moving = new FakeWidget(new PixelPoint(200, 420), new PixelSize(292, 60));
+
+        var proposed = new PixelRect(200, 420, 290, 60);
+
+        var result = controller.SnapResize(
+            [neighbour, moving], moving, proposed, WidgetEdges.Right, SmallMinimum, NoMargin);
+
+        Assert.Equal(500 - WidgetSnapEngine.DefaultGap, result.Right);
+        Assert.Equal(200, result.X);
+        Assert.NotNull(moving.Highlight);
+        Assert.NotNull(neighbour.Highlight);
+        Assert.Equal(WidgetEdge.Left, neighbour.Highlight![0].Edge);
+    }
+
+    [Fact]
+    public void AResizeThatDoesNotSnapClearsEveryHighlight()
+    {
+        var controller = Create();
+        var neighbour = new FakeWidget(new PixelPoint(500, 400), new PixelSize(200, 100));
+        var moving = new FakeWidget(new PixelPoint(200, 420), new PixelSize(292, 60));
+        neighbour.SetSnapHighlight([new WidgetGlowSegment(WidgetEdge.Left, 0, 1)]);
+
+        // Far short of the gap, so nothing snaps and the stale glow has to go.
+        var proposed = new PixelRect(200, 420, 40, 60);
+
+        var result = controller.SnapResize(
+            [neighbour, moving], moving, proposed, WidgetEdges.Right, SmallMinimum, NoMargin);
+
+        Assert.Equal(proposed, result);
+        Assert.Null(moving.Highlight);
+        Assert.Null(neighbour.Highlight);
+    }
+
+    [Fact]
+    public void AResizeHonoursTheMinimumSizeEvenWhenASnapIsInRange()
+    {
+        var controller = Create();
+        var neighbour = new FakeWidget(new PixelPoint(500, 400), new PixelSize(200, 100));
+        var moving = new FakeWidget(new PixelPoint(480, 420), new PixelSize(14, 60));
+
+        var proposed = new PixelRect(480, 420, 14, 60);
+        var minimum = new PixelSize(120, 40);
+
+        var result = controller.SnapResize(
+            [neighbour, moving], moving, proposed, WidgetEdges.Right, minimum, NoMargin);
+
+        Assert.Equal(proposed, result);
+    }
+
+    [Fact]
+    public void TheSurfaceMarginComesOffTheResizeProposalAndGoesBackOnTheResult()
+    {
+        // The visible cards must end up the configured gap apart, so the margin
+        // leaves both the proposal and the minimum before the edges are matched.
+        const int margin = 16;
+        var controller = Create();
+
+        var neighbour = new FakeWidget(new PixelPoint(500, 400), new PixelSize(200, 100));
+        var moving = new FakeWidget(new PixelPoint(0, 0), new PixelSize(306, 60));
+
+        // Card at (200, 420) sized 306x60, expressed as the window around it.
+        var proposedWindow = new PixelRect(184, 404, 338, 92);
+        var neighbourCardLeft = 500 + margin;
+        var expectedCardRight = neighbourCardLeft - WidgetSnapEngine.DefaultGap;
+
+        var result = controller.SnapResize(
+            [neighbour, moving], moving, proposedWindow, WidgetEdges.Right, SmallMinimum, margin);
+
+        Assert.Equal(expectedCardRight + margin, result.Right);
+        Assert.Equal(proposedWindow.X, result.X);
+    }
+
     [Fact]
     public void ClearingHighlightsClearsEveryWidget()
     {

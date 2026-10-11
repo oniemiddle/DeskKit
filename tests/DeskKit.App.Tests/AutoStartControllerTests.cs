@@ -2,7 +2,6 @@ using DeskKit.App.Shell;
 using DeskKit.Core.Models;
 using DeskKit.Platform;
 using Microsoft.Extensions.Logging.Abstractions;
-using DeskKit.Runtime;
 
 namespace DeskKit.App.Tests;
 
@@ -22,7 +21,7 @@ public sealed class AutoStartControllerTests
         var corrected = controller.Reconcile(new AppSettings { StartWithWindows = true });
 
         Assert.NotNull(corrected);
-        Assert.False(corrected!.StartWithWindows);
+        Assert.False(corrected.StartWithWindows);
     }
 
     [Fact]

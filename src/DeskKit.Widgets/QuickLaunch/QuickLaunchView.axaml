@@ -34,14 +34,14 @@
                                 </ContextMenu>
                             </Button.ContextMenu>
 
-                            <StackPanel Width="{Binding IconSize}" Spacing="4">
+                            <StackPanel Width="{Binding IconSize}" Spacing="6">
                                 <Image Width="{Binding IconSize}"
                                        Height="{Binding IconSize}"
                                        HorizontalAlignment="Center"
                                        Source="{Binding Icon}" />
 
                                 <TextBlock Classes="widget-secondary"
-                                           FontSize="10"
+                                           FontSize="11"
                                            TextAlignment="Center"
                                            TextTrimming="CharacterEllipsis"
                                            Text="{Binding DisplayName}" />
@@ -54,7 +54,7 @@
             <TextBlock HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Classes="widget-secondary"
-                       FontSize="12"
+                       FontSize="11"
                        IsVisible="{Binding IsEmpty}"
                        TextAlignment="Center"
                        TextWrapping="Wrap"

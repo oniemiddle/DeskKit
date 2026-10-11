@@ -119,6 +119,15 @@ public partial class WidgetWindow : Window
     /// </summary>
     public Func<PixelPoint, PixelPoint>? SnapStrategy { get; set; }
 
+    /// <summary>
+    /// Consulted during a resize to magnetically align the edges being dragged
+    /// with other widgets. The shell supplies it because only the shell knows
+    /// about the other widgets; it also takes care of highlighting whichever
+    /// neighbours were snapped to. The rectangle and the minimum size are in
+    /// physical pixels, and the returned rectangle is too.
+    /// </summary>
+    public Func<PixelRect, WidgetEdges, PixelSize, PixelRect>? ResizeSnapStrategy { get; set; }
+
     /// <summary>Raised after the user finishes dragging the widget.</summary>
     public event EventHandler? DragCompleted;
 
@@ -462,7 +471,14 @@ public partial class WidgetWindow : Window
         if (_resizingEdges == WidgetEdges.None)
             return;
 
-        var target = _resizeSession.Resolve(pointerScreen, MinimumSizeInPixels());
+        var minimum = MinimumSizeInPixels();
+        var target = _resizeSession.Resolve(pointerScreen, minimum);
+
+        // Magnetism is applied afterwards, and only to the edges being dragged:
+        // the resolved rectangle is the pointer's own answer, and the snap nudges
+        // its moving edges onto a neighbour rather than feeding back into it.
+        if (ResizeSnapStrategy is { } snap)
+            target = snap(target, _resizingEdges, minimum);
 
         // Window.Width is the window size in device-independent pixels, and the
         // resolved rectangle is in physical pixels, so it is a plain conversion —

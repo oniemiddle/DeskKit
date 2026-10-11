@@ -7,6 +7,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://DeskKit.Widgets/Shared/WidgetTheme.axaml" />
+                <ResourceInclude Source="avares://DeskKit.App/Resources/AppTheme.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
@@ -14,5 +15,6 @@
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://DeskKit.Widgets/Shared/WidgetStyles.axaml" />
+        <StyleInclude Source="avares://DeskKit.App/Resources/AppStyles.axaml" />
     </Application.Styles>
 </Application>

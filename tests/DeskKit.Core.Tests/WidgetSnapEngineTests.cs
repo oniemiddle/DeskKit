@@ -282,4 +282,157 @@ public sealed class WidgetSnapEngineTests
         Assert.Equal(first.Position, second.Position);
         Assert.Equal(first.Neighbours, second.Neighbours);
     }
+
+    // ---- Resizing ---------------------------------------------------------
+
+    /// <summary>A minimum far below anything the resize tests ask for.</summary>
+    private static readonly PixelSize SmallMinimum = new(1, 1);
+
+    private static WidgetResizeSnapResult SnapResize(
+        PixelRect moving,
+        WidgetEdges edges,
+        PixelSize minimum,
+        params PixelRect[] others) =>
+        WidgetSnapEngine.SnapResize(moving, edges, others, minimum, Gap, Threshold, Proximity);
+
+    [Fact]
+    public void SnapResize_WithNoEdgesDragged_LeavesTheRectangleAlone()
+    {
+        var moving = new PixelRect(200, 420, 290, 60);
+
+        var result = SnapResize(moving, WidgetEdges.None, SmallMinimum, Anchor);
+
+        Assert.Equal(moving, result.Rect);
+        Assert.False(result.Snapped);
+        Assert.Empty(result.Neighbours);
+    }
+
+    [Fact]
+    public void SnapResize_DraggingTheRightEdge_StopsAtTheGapBesideTheNeighbour()
+    {
+        // The right edge is 2px short of the gap a drag would leave between the
+        // two widgets, and the anchor overlaps it vertically.
+        var moving = new PixelRect(200, 420, 290, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.True(result.SnappedX);
+        Assert.Equal(Anchor.X - Gap, result.Rect.Right);
+        Assert.Equal(moving.X, result.Rect.X);
+    }
+
+    [Fact]
+    public void SnapResize_DraggingTheRightEdge_AlignsWithTheNeighboursRightEdge()
+    {
+        var moving = new PixelRect(200, 420, 498, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.True(result.SnappedX);
+        Assert.Equal(Anchor.Right, result.Rect.Right);
+        Assert.Equal(200, result.Rect.X);
+    }
+
+    [Fact]
+    public void SnapResize_DraggingTheLeftEdge_KeepsTheRightEdgeAnchored()
+    {
+        // Beside the anchor and 2px short of the gap, resized from the left.
+        var moving = new PixelRect(Anchor.Right + Gap + 2, 420, 194, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Left, SmallMinimum, Anchor);
+
+        Assert.True(result.SnappedX);
+        Assert.Equal(Anchor.Right + Gap, result.Rect.X);
+        Assert.Equal(moving.Right, result.Rect.Right);
+    }
+
+    [Fact]
+    public void SnapResize_AdjacencyNeedsAnOverlapOnTheOtherAxis()
+    {
+        // Vertically just outside the anchor's card, so the two are close enough
+        // to be neighbours but not side by side: an edge must not be glued to a
+        // gap a drag would never have produced here.
+        var moving = new PixelRect(200, Anchor.Bottom + Gap, 290, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.False(result.Snapped);
+        Assert.Equal(moving, result.Rect);
+    }
+
+    [Fact]
+    public void SnapResize_DraggingTheBottomEdge_StopsAtTheGapBelowTheNeighbour()
+    {
+        var moving = new PixelRect(520, 200, 100, 190);
+
+        var result = SnapResize(moving, WidgetEdges.Bottom, SmallMinimum, Anchor);
+
+        Assert.True(result.SnappedY);
+        Assert.Equal(Anchor.Y - Gap, result.Rect.Bottom);
+        Assert.Equal(200, result.Rect.Y);
+    }
+
+    [Fact]
+    public void SnapResize_DraggingTheBottomEdge_AlignsWithTheNeighboursBottomEdge()
+    {
+        var moving = new PixelRect(520, 200, 100, 298);
+
+        var result = SnapResize(moving, WidgetEdges.Bottom, SmallMinimum, Anchor);
+
+        Assert.True(result.SnappedY);
+        Assert.Equal(Anchor.Bottom, result.Rect.Bottom);
+        Assert.Equal(200, result.Rect.Y);
+    }
+
+    [Fact]
+    public void SnapResize_IgnoresACandidateThatWouldFallBelowTheMinimum()
+    {
+        // The adjacent target is 2px away, but honouring it would leave a 12px
+        // widget — inside the capture range but smaller than it may ever be.
+        var moving = new PixelRect(480, 420, 14, 60);
+        var minimum = new PixelSize(120, 40);
+
+        var result = SnapResize(moving, WidgetEdges.Right, minimum, Anchor);
+
+        Assert.False(result.Snapped);
+        Assert.Equal(moving, result.Rect);
+    }
+
+    [Fact]
+    public void SnapResize_BeyondTheCaptureRange_LeavesTheRectangleAlone()
+    {
+        var moving = new PixelRect(200, 420, 260, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.False(result.Snapped);
+        Assert.Equal(moving, result.Rect);
+    }
+
+    [Fact]
+    public void SnapResize_ReportsTheNeighbourAndTheEdgeItShares()
+    {
+        var moving = new PixelRect(200, 420, 290, 60);
+
+        var result = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.Equal(0, Assert.Single(result.Neighbours));
+
+        // The anchor sits to the right of the resized widget, so it is the
+        // right edge that faces it.
+        var segment = Assert.Single(result.Glow);
+        Assert.Equal(WidgetEdge.Right, segment.Edge);
+    }
+
+    [Fact]
+    public void SnapResize_IsIndependentOfPreviousFrames()
+    {
+        var moving = new PixelRect(200, 420, 290, 60);
+
+        var first = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+        var second = SnapResize(moving, WidgetEdges.Right, SmallMinimum, Anchor);
+
+        Assert.Equal(first.Rect, second.Rect);
+        Assert.Equal(first.Neighbours, second.Neighbours);
+    }
 }

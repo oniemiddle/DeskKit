@@ -9,6 +9,11 @@
          Light-on-light was previously latent as well: the light theme already
          handed widgets a near-white card. -->
 
+    <!-- Ink for the sticky note. It is deliberately not split per theme variant:
+         the papers are always light, so the ink stays dark in both. -->
+    <SolidColorBrush x:Key="NoteInkForeground">#E61F2937</SolidColorBrush>
+    <SolidColorBrush x:Key="NoteInkSelectionBrush">#552563EB</SolidColorBrush>
+
     <ResourceDictionary.ThemeDictionaries>
 
         <ResourceDictionary x:Key="Dark">

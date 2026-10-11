@@ -109,7 +109,14 @@ internal sealed class WidgetRuntimeHost(
             placementRules.Capture(runtime, surfaceMargin);
         };
 
-        window.ResizeCompleted += (_, _) => placementRules.Capture(runtime, surfaceMargin);
+        window.ResizeSnapStrategy = (proposed, edges, minimum) =>
+            placementRules.SnapResize(_widgets, runtime, proposed, edges, minimum, surfaceMargin);
+
+        window.ResizeCompleted += (_, _) =>
+        {
+            PlacementController.ClearHighlights(_widgets);
+            placementRules.Capture(runtime, surfaceMargin);
+        };
 
         _widgets.Add(runtime);
 

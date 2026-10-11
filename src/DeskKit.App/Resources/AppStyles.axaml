@@ -1,0 +1,261 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- The settings window's visual language: a vertical navigation rail and
+         grouped setting cards, in the Windows 11 settings pattern. The navigation
+         is a restyled TabControl — selection, keyboard navigation and page
+         switching come from the control itself. -->
+
+    <Style Selector="TabControl.settings-nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="28,20,28,16" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <DockPanel>
+                    <ItemsPresenter Name="PART_ItemsPresenter"
+                                    ItemsPanel="{TemplateBinding ItemsPanel}"
+                                    Width="196"
+                                    Margin="12,12,8,12"
+                                    DockPanel.Dock="Left" />
+                    <ContentPresenter Name="PART_SelectedContentHost"
+                                      Content="{TemplateBinding SelectedContent}"
+                                      ContentTemplate="{TemplateBinding SelectedContentTemplate}"
+                                      Margin="{TemplateBinding Padding}" />
+                </DockPanel>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="TabItem.settings-nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Margin" Value="2,1" />
+        <Setter Property="Padding" Value="11,0" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Content="{TemplateBinding Header}"
+                                  ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                  Background="{TemplateBinding Background}"
+                                  CornerRadius="{StaticResource NavCornerRadius}"
+                                  Padding="{TemplateBinding Padding}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="TabItem.settings-nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NavHoverBackground}" />
+    </Style>
+
+    <Style Selector="TabItem.settings-nav:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NavSelectedBackground}" />
+    </Style>
+
+    <Style Selector="TabItem.settings-nav:selected">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource NavSelectedForeground}" />
+    </Style>
+
+    <Style Selector="Border.settings-card">
+        <Setter Property="Background" Value="{DynamicResource SettingsCardBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SettingsCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardCornerRadius}" />
+        <Setter Property="Padding" Value="16,4" />
+    </Style>
+
+    <Style Selector="Grid.settings-row">
+        <Setter Property="MinHeight" Value="40" />
+    </Style>
+
+    <!-- A control in a settings row sits centred in it, so the row's own height
+         becomes the gap above and below. Left to stretch, a combo box grows to
+         the full row height and butts straight against the row separator, which
+         reads as if the two rows were welded together. -->
+    <Style Selector="Grid.settings-row > ComboBox">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Grid.settings-row > TextBox">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Grid.settings-row > Button">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- A switch at the end of a settings row states its value by position, the
+         way the Windows 11 settings app does; the control's own On/Off captions
+         would only repeat what the row label already says. -->
+    <Style Selector="Grid.settings-row > ToggleSwitch">
+        <Setter Property="OnContent" Value="{x:Null}" />
+        <Setter Property="OffContent" Value="{x:Null}" />
+    </Style>
+
+    <Style Selector="TextBlock.settings-group">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="2,0,0,6" />
+    </Style>
+
+    <Style Selector="TextBlock.settings-caption">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource SettingsHintForeground}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- The interactive controls keep Fluent's templates and interaction logic;
+         only their metrics are pulled down to the settings window's density. The
+         surfaces, borders and accent come from the recoloured Fluent resources in
+         AppTheme.axaml, which is also what the widget settings panes inherit. -->
+
+    <Style Selector="Button">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="12,5" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBox">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+    </Style>
+
+    <!-- Drop-down rows and list rows are the same inset pill. Fluent paints the
+         selection with the full-strength accent on a square corner and pins the
+         radius inside its own template, so the row shape has to come from a
+         template of ours; the colours stay on the quiet tint the navigation rail
+         uses so the page reads as one surface. -->
+
+    <Style Selector="ComboBoxItem">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Border"
+                        Margin="2,1"
+                        Padding="{TemplateBinding Padding}"
+                        CornerRadius="4"
+                        Background="Transparent"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter Background="Transparent"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ComboBoxItem:pointerover /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource ListChoiceHover}" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource ListChoiceSelected}" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource NavSelectedForeground}" />
+    </Style>
+
+    <!-- Fluent paints these states onto a ContentPresenter matched by type, so the
+         row's own Border can only show through once that fill is cleared. Same
+         pseudo-class, declared after the theme, so this wins the tie. -->
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NavSelectedForeground}" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style Selector="ListBoxItem">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Border"
+                        Margin="2,1"
+                        Padding="{TemplateBinding Padding}"
+                        CornerRadius="{StaticResource NavCornerRadius}"
+                        Background="Transparent"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <ContentPresenter Background="Transparent"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <Style Selector="ListBoxItem:pointerover /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource ListChoiceHover}" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected /template/ Border#PART_Border">
+        <Setter Property="Background" Value="{DynamicResource ListChoiceSelected}" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource NavSelectedForeground}" />
+    </Style>
+
+    <Style Selector="ToggleSwitch">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+    </Style>
+
+    <Style Selector="CheckBox">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
+    </Style>
+
+    <Style Selector="Slider">
+        <Setter Property="MinHeight" Value="24" />
+    </Style>
+</Styles>

@@ -1,6 +1,4 @@
-﻿// Compiled only into the Windows target framework.
-#if WINDOWS
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using DeskKit.Platform.Interop;
 
 namespace DeskKit.Platform.Windows;
@@ -263,4 +261,3 @@ internal static class DesktopIconHitTest
 
     private readonly record struct WindowEntry(IntPtr Handle, string ClassName);
 }
-#endif

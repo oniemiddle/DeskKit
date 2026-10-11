@@ -550,12 +550,15 @@ pushing back the edge being dragged rather than by moving the anchored one.
 
 ```
 src/
-  DeskKit.Core/         widget contract, state records, pure rules, port contracts
-  DeskKit.Runtime/      the widget runtime: state, lifetime, windows, placement, appearance
-  DeskKit.Persistence/  the database: EF Core, migrations, backup, old-JSON import
-  DeskKit.Platform/     OS interop: window pinning, surface materials, shell icons, autostart
-  DeskKit.Widgets/      the built-in widgets and their strings
-  DeskKit.App/          the product: composition root, tray, settings window, notices, self test
+  DeskKit.Core/                  widget contract, state records, pure rules, port contracts
+  DeskKit.Runtime/               the widget runtime: state, lifetime, windows, placement, appearance
+  DeskKit.Persistence/           the database: EF Core, migrations, backup, old-JSON import
+  DeskKit.Platform.Abstractions/ the platform's ports, their no-ops, and the pure capability rules
+  DeskKit.Platform.Windows/      the Win32 implementations: window pinning, surface material,
+                                 shell icons, autostart, desktop gestures
+  DeskKit.Platform/              the composition that chooses between the two
+  DeskKit.Widgets/               the built-in widgets and their strings
+  DeskKit.App/                   the product: composition root, tray, settings window, notices, self test
 tests/
   DeskKit.Core.Tests/
   DeskKit.Runtime.Tests/
@@ -566,18 +569,32 @@ scripts/
   New-AppIcon.ps1      regenerates Assets/deskkit.ico from scratch
 ```
 
-Dependencies point one way: `Core` references nothing else, `Runtime`,
-`Persistence`, `Platform` and `Widgets` reference only `Core`, and `App`
-references all five. `DeskKit.Runtime.csproj` fails the build if it is given any
-project reference but `DeskKit.Core`, so the runtime cannot quietly grow a
-dependency on the database, the Win32 implementation or the built-in widgets.
+Dependencies point one way: `Core` references nothing else; `Runtime`,
+`Persistence`, `Widgets` and `Platform.Abstractions` reference only `Core`;
+`Platform.Windows` references `Core` and `Platform.Abstractions`; `Platform`
+references those three; and `App` references all of them.
+`DeskKit.Runtime.csproj` fails the build if it is given any project reference but
+`DeskKit.Core`, so the runtime cannot quietly grow a dependency on the database,
+the Win32 implementation or the built-in widgets.
 
-`DeskKit.Platform` is the one multi-targeted project. It builds `net10.0-windows`,
-where the Win32 implementations and their interop are compiled in, and `net10.0`,
-where they are compiled out and the no-op capabilities are registered instead.
-`DeskKit.App` and its tests target `net10.0-windows` and so ship the Windows leg;
-`Core`, `Runtime`, `Persistence` and `Widgets` stay platform-neutral on `net10.0`.
-Nothing in the product decides which platform it is on at run time.
+The platform is three projects rather than one because abstraction and
+implementation have to be separated without a cycle. The implementations need the
+ports, the composition needs the implementations, and a project cannot reference
+the thing that references it. `DeskKit.Platform.Abstractions` holds the ports, the
+no-op implementations and the pure rules, which is what both sides can see;
+`DeskKit.Platform.Windows` holds the Win32 implementations, in an assembly that is
+Windows-only so that nothing inside it needs a guard; and `DeskKit.Platform` holds
+the one guard there is.
+
+That composition is the only multi-targeted project. It builds `net10.0-windows`,
+where it references `DeskKit.Platform.Windows` and registers what that holds, and
+`net10.0`, where there is no implementation to reference at all and the no-op
+capabilities are registered instead — the reference is conditioned the same way the
+`#if` is, so the two cannot disagree. `DeskKit.App` and its tests target
+`net10.0-windows` and so ship the Windows leg. Everything else builds one target
+framework: the neutral projects on `net10.0`, and `DeskKit.Platform.Windows` on
+`net10.0-windows`, because a Windows-only assembly is what lets its files go
+unguarded. Nothing in the product decides which platform it is on at run time.
 
 ## Data
 

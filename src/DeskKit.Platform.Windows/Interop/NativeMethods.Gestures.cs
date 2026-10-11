@@ -1,6 +1,4 @@
-﻿// Compiled only into the Windows target framework.
-#if WINDOWS
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace DeskKit.Platform.Interop;
 
@@ -251,4 +249,3 @@ internal static partial class NativeMethods
         public int Group;
     }
 }
-#endif

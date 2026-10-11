@@ -1,6 +1,4 @@
-﻿// Compiled only into the Windows target framework.
-#if WINDOWS
-using Avalonia.Controls;
+﻿using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
 namespace DeskKit.Platform.Windows;
@@ -50,4 +48,3 @@ public sealed class WindowsNotificationWindowStyler : INotificationWindowStyler
             DesktopLayerPolicy.SwpNoMove | DesktopLayerPolicy.SwpNoSize | DesktopLayerPolicy.SwpNoActivate);
     }
 }
-#endif

@@ -1,6 +1,4 @@
-﻿// Compiled only into the Windows target framework.
-#if WINDOWS
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Avalonia.Threading;
@@ -414,4 +412,3 @@ public sealed class WindowsDesktopGestureService : IDesktopGestureService, IDisp
     /// <summary>One press waiting for the hit test, and the watcher that heard it.</summary>
     private readonly record struct QueuedPress(long Generation, NativeMethods.POINT Point, uint TimeMs);
 }
-#endif

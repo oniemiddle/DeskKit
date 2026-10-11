@@ -3,8 +3,10 @@
   <PropertyGroup>
     <!-- The product is a Windows application: it has a manifest, it pins windows into
          the desktop layer and it registers itself to start with the shell. Targeting
-         Windows is what selects the platform implementations in DeskKit.Platform at
-         compile time instead of testing the OS at run time. -->
+         Windows is what selects the Windows leg of DeskKit.Platform at compile time
+         instead of testing the OS at run time, and the desktop self test drives the
+         Win32 services directly, which is why the implementations and the ports they
+         implement are referenced here as well. -->
     <TargetFramework>net10.0-windows</TargetFramework>
     <OutputType>WinExe</OutputType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -24,6 +26,8 @@
     <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
     <ProjectReference Include="..\DeskKit.Persistence\DeskKit.Persistence.csproj" />
     <ProjectReference Include="..\DeskKit.Platform\DeskKit.Platform.csproj" />
+    <ProjectReference Include="..\DeskKit.Platform.Abstractions\DeskKit.Platform.Abstractions.csproj" />
+    <ProjectReference Include="..\DeskKit.Platform.Windows\DeskKit.Platform.Windows.csproj" />
     <ProjectReference Include="..\DeskKit.Runtime\DeskKit.Runtime.csproj" />
     <ProjectReference Include="..\DeskKit.Widgets\DeskKit.Widgets.csproj" />
   </ItemGroup>

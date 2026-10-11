@@ -12,9 +12,10 @@ namespace DeskKit.Platform;
 /// <remarks>
 /// The application deliberately calls one composition method and never tests the
 /// operating system itself. The choice is made when this assembly is compiled rather
-/// than when it runs: the Windows target framework compiles the Win32 implementations
-/// in and registers them here, and a target framework without them registers the
-/// no-op capabilities instead.
+/// than when it runs: the Windows target framework references
+/// <c>DeskKit.Platform.Windows</c> and registers the implementations it holds, and a
+/// target framework that has no implementation to reference registers the no-op
+/// capabilities instead.
 /// </remarks>
 public static class PlatformServiceCollectionExtensions
 {

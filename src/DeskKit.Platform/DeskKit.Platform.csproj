@@ -1,10 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Two legs, and the platform is chosen by which one is compiled rather than by
-         a runtime test: the net10.0-windows leg defines WINDOWS, which is what
-         compiles the interop and the Windows implementations in, and the net10.0 leg
-         compiles them out and registers the no-op capabilities. The product
+    <!-- The composition, and nothing else: the ports and the pure rules are in
+         DeskKit.Platform.Abstractions, the Windows implementations are in
+         DeskKit.Platform.Windows, and what is left here is the one place the two are
+         joined and the one place the choice between them is made.
+
+         Two legs, and the platform is chosen by which one is compiled rather than by
+         a runtime test: the net10.0-windows leg references DeskKit.Platform.Windows
+         and registers its services, and the net10.0 leg has no implementation to
+         reference at all and registers the no-op capabilities. The product
          references the Windows leg; the neutral leg is what keeps "the desktop layer
          is Windows-only" a property of the build. -->
     <!-- Cleared first, because Directory.Build.props sets a single net10.0 default
@@ -13,20 +18,25 @@
          leg is the only one ever built. -->
     <TargetFramework />
     <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
-
-    <!-- The interop declarations use character buffers for the structures the shell
-         fills in, and LibraryImport's generated stubs are compiled unsafe. -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+    <ProjectReference Include="..\DeskKit.Platform.Abstractions\DeskKit.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <!-- Referenced only on the leg that can load it, which has to agree with the
+         #if in the composition: naming a Windows type there without this reference
+         does not compile, so the two cannot drift apart. A net10.0 leg cannot
+         reference a Windows-only assembly at all, which is why the condition is
+         here and not just the symbol. -->
+    <ProjectReference Include="..\DeskKit.Platform.Windows\DeskKit.Platform.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Needed only so the Shell icon loader can hand back an Avalonia bitmap. -->
-    <PackageReference Include="Avalonia" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- Only the composition's own dependency: the UI framework and the logging
+         abstractions went with the implementations they were there for. -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 

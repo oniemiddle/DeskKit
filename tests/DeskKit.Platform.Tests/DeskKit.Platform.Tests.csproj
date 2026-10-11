@@ -5,8 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- These tests cover the platform's pure rules, which live in the abstractions:
+         they need no Windows implementation and no window, which is the property the
+         project being on the neutral target framework keeps honest. -->
     <ProjectReference Include="..\..\src\DeskKit.Core\DeskKit.Core.csproj" />
-    <ProjectReference Include="..\..\src\DeskKit.Platform\DeskKit.Platform.csproj" />
+    <ProjectReference Include="..\..\src\DeskKit.Platform.Abstractions\DeskKit.Platform.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

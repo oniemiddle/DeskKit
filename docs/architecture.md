@@ -9,24 +9,30 @@ boundary between the two is `DeskKit.Core`'s provider and host contracts.
 
 ```
 src/
-  DeskKit.Core/         widget contract, domain records, pure rules, port contracts
-  DeskKit.Runtime/      the widget runtime: state, lifetimes, windows, placement, appearance
-  DeskKit.Persistence/  the database: EF Core, migrations, backup, old-JSON import
-  DeskKit.Platform/     OS interop: window pinning, surface material, shell icons, autostart
-  DeskKit.Widgets/      the built-in widgets and their strings
-  DeskKit.App/          the product: composition root, tray, settings, notices, self test
+  DeskKit.Core/                  widget contract, domain records, pure rules, port contracts
+  DeskKit.Runtime/               the widget runtime: state, lifetimes, windows, placement, appearance
+  DeskKit.Persistence/           the database: EF Core, migrations, backup, old-JSON import
+  DeskKit.Platform.Abstractions/ the platform's ports, their no-ops, and the pure capability rules
+  DeskKit.Platform.Windows/      OS interop: window pinning, surface material, shell icons, autostart
+  DeskKit.Platform/              the composition that chooses between the two
+  DeskKit.Widgets/               the built-in widgets and their strings
+  DeskKit.App/                   the product: composition root, tray, settings, notices, self test
 ```
 
-Dependencies always point down this diagram, and the build enforces the sharpest
+Dependencies always point away from `Core`, and the build enforces the sharpest
 edge of it (`DeskKit.Runtime.csproj` fails if it is given any reference but
 `DeskKit.Core`):
 
 ```
-        Core
-       ↑  ↑  ↑  ↑
-Runtime  Persistence  Platform  Widgets
-       ↑  ↑  ↑  ↑
-        App
+Core
+├── Runtime
+├── Persistence
+├── Widgets
+└── Platform.Abstractions
+    ├── Platform.Windows
+    └── Platform             picks Platform.Windows on the Windows leg
+
+App ── references all of the above
 ```
 
 `Core` holds the widget contract, the state records, the pure rules that decide
@@ -43,6 +49,15 @@ consumes, and nothing else — no tray, no settings window, no database, no Win3
 `Persistence` is the only project holding EF Core and SQLite, and the only place
 `WidgetPlacement` is mapped to a database entity.
 
+`Platform.Abstractions`, `Platform.Windows` and `Platform` are the platform split
+into abstraction, implementation and composition. They are three projects rather
+than one because the split has to be acyclic: the implementations need the ports,
+the composition needs the implementations, and nothing may reference the project
+that references it. `Platform.Abstractions` holds what both sides can see, so it is
+the only one of the three the implementations reference. `Platform` therefore has
+nothing left to do but register — and it is the only project in the repository that
+uses a conditional-compilation symbol to choose an implementation.
+
 `App` is the product. It is the composition root, it owns everything the user
 sees around the widgets (tray icon, settings window, context menu, notices),
 and it is the only project that references all the others.
@@ -54,19 +69,26 @@ cannot be named by the runtime: the runtime never resolves user-visible text.
 
 `DeskKit.Platform` expresses host integration as capabilities, and which
 implementation a capability gets is decided when the assembly is compiled, not when
-it runs. The project targets two frameworks:
+it runs. That choice is made in one place, and it is the only conditional
+compilation in the repository outside the debug-only DevTools hook:
 
-* `net10.0-windows` defines `WINDOWS`. The `Windows` folder and the interop it calls
-  are compiled only into this leg, and `AddDeskKitPlatform()` registers them.
-* `net10.0` compiles those files out, and `AddDeskKitPlatform()` registers the no-op
-  capabilities instead.
+* `DeskKit.Platform`'s `net10.0-windows` leg references `DeskKit.Platform.Windows`
+  and `AddDeskKitPlatform()` registers the implementations it holds.
+* Its `net10.0` leg has no implementation to reference at all, and
+  `AddDeskKitPlatform()` registers the no-op capabilities instead.
+
+The reference is conditioned the same way the `#if` is, so a leg cannot name an
+implementation it cannot load. The implementations live in a Windows-only project
+for the same reason: `DeskKit.Platform.Windows` targets `net10.0-windows` and
+nothing inside it is guarded, because nothing inside it is ever compiled where the
+answer could be no. No file there tests the operating system either.
 
 The product targets `net10.0-windows` and therefore ships the Windows leg; the
-neutral leg is what keeps the no-op path compiling instead of letting it rot. No
-file under `Windows/` tests the operating system, because none of it is compiled
-where the answer could be no. The contracts the runtime consumes live in
-`DeskKit.Core`, because the runtime may only reference Core (D-3/D-6); the
-implementations, and the capabilities only the product uses, live here:
+neutral leg is what keeps the no-op path compiling instead of letting it rot. The
+contracts the runtime consumes live in `DeskKit.Core`, because the runtime may only
+reference Core (D-3/D-6); the capabilities only the product uses, and the rules that
+decide what a platform can honour, live in `DeskKit.Platform.Abstractions`, along
+with their no-op implementations:
 
 | Capability | Contract | Windows implementation | Neutral implementation |
 | --- | --- | --- | --- |
@@ -74,11 +96,12 @@ implementations, and the capabilities only the product uses, live here:
 | Desktop's own double-click | `Core`: `IDesktopGestureService` | `WindowsDesktopGestureService` | `NullDesktopGestureService` |
 | Window material | `Core`: `IWindowMaterialService` (+ `WidgetMaterial`) | `WindowsWindowMaterialService` | `NullWindowMaterialService` |
 | File icons | `Core`: `IShellIconLoader` | `WindowsShellIconLoader` | `NullShellIconLoader` |
-| Login startup | `Platform`: `IAutoStartService` | `WindowsAutoStartService` | `NullAutoStartService` |
-| Notification window styling | `Platform`: `INotificationWindowStyler` | `WindowsNotificationWindowStyler` | `NullNotificationWindowStyler` |
+| Login startup | `Platform.Abstractions`: `IAutoStartService` | `WindowsAutoStartService` | `NullAutoStartService` |
+| Notification window styling | `Platform.Abstractions`: `INotificationWindowStyler` | `WindowsNotificationWindowStyler` | `NullNotificationWindowStyler` |
 
-The rules that decide *whether* a capability can be honoured stay here as
-dependency-free static classes (`MaterialPolicy.Resolve`, `DesktopLayerPolicy`,
+The rules that decide *whether* a capability can be honoured stay in
+`DeskKit.Platform.Abstractions` as dependency-free static classes
+(`MaterialPolicy.Resolve`, `DesktopLayerPolicy`,
 `DesktopBackdropPolicy`, `DesktopDoubleClickDetector`), so they are unit-tested
 rather than discovered on one particular machine. Note that `MaterialPolicy` still
 takes the build number: "Mica is available" is a question about the machine,
@@ -87,7 +110,7 @@ the second one becomes a target framework.
 
 `AddDeskKitPlatform()` is the only platform selection point used by the app, and it
 holds no runtime test — the compiler has already answered. Adding an OS therefore
-means adding a target framework and the implementations for it, not adding
+means adding an implementation project and the leg that references it, not adding
 `OperatingSystem.Is…` branches to views or widgets. A null capability must be a safe
 fallback, never an exception for a feature the host can simply omit. The one
 production file that used to name the Win32 implementation directly — the notice

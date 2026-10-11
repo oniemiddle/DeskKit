@@ -1,5 +1,3 @@
-// Compiled only into the Windows target framework.
-#if WINDOWS
 using System.Runtime.InteropServices;
 using Avalonia;
 using DeskKit.Platform.Interop;
@@ -289,4 +287,3 @@ public static class DesktopDiagnostics
             rect);
     }
 }
-#endif

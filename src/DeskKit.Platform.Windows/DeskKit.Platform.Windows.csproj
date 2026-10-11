@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The Windows leg, and only the Windows leg. The target framework is the
+         guard: nothing in here needs `#if WINDOWS`, because a build that is not
+         Windows cannot reference this assembly at all. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+
+    <!-- The interop declarations use character buffers for the structures the shell
+         fills in, and LibraryImport's generated stubs are compiled unsafe. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Everything here implements a port declared in one of these two, and the
+         widget contract they speak in terms of lives in Core. -->
+    <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+    <ProjectReference Include="..\DeskKit.Platform.Abstractions\DeskKit.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The desktop layer drives real Avalonia windows and the shell icon loader
+         hands back an Avalonia bitmap. -->
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>

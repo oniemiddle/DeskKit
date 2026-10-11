@@ -1,5 +1,3 @@
-// Compiled only into the Windows target framework.
-#if WINDOWS
 namespace DeskKit.Platform.Interop;
 
 /// <summary>
@@ -87,4 +85,3 @@ internal static class Win32
     internal const int SM_CXICON = 11;
     internal const int SM_CYICON = 12;
 }
-#endif

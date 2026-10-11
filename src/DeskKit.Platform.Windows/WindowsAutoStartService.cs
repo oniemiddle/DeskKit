@@ -1,5 +1,3 @@
-// Compiled only into the Windows target framework.
-#if WINDOWS
 using System.Security;
 using Microsoft.Win32;
 
@@ -60,4 +58,3 @@ public sealed class WindowsAutoStartService(string? valueName = null, string? ex
         }
     }
 }
-#endif

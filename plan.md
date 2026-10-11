@@ -1347,6 +1347,19 @@ widget 名称本地化                      →   App/WidgetCatalog（Product）
 | 未变的边界 | 六个项目的引用方向不变；`Runtime → Core` 不受影响；`DeskKit.Platform.Tests` 留在 `net10.0`，因此它只覆盖纯规则（`DesktopLayerPolicy` / `MaterialPolicy`），这也顺带证明这两个规则类型确实与平台无关 |
 | 验证 | build **0 警告 / 0 错误**；**260 测试通过 / 0 失败**；自检 **PASS (214 checks)** 退出码 0；两 leg 产物核对：`net10.0` 无 Windows 实现、`net10.0-windows` 有；实机启动 14 秒，进程存活、stderr 为空、创建 `clock` / `quick-launch` / `sticky-note` 三个默认 widget 窗口 |
 
+### 24.9 平台抽象 / 实现 / 组合三分（审计后续改动，非 P0–P6 阶段）
+
+| 项 | 结果 |
+| --- | --- |
+| 背景 | §24.8 把平台选择改到了编译期，但接口、纯规则、Windows 实现与桥接仍同居 `DeskKit.Platform`：实现整文件包在 `#if WINDOWS … #endif` 内（`Windows/` 8 个 + `Interop/` 3 个），桥接另有一套 `#if/#else`，条件编译散落在 11 个文件与 DI 两处 |
+| 决策 | 按抽象 / 实现 / 组合拆成三个项目：`DeskKit.Platform.Abstractions`（2 个接口 + 其 no-op + 4 个纯规则，`net10.0`）、`DeskKit.Platform.Windows`（8 个 Windows 服务 + `Interop/`，`net10.0-windows`）、`DeskKit.Platform`（只剩 `AddDeskKitPlatform()`，继续多目标 `net10.0;net10.0-windows`） |
+| 必须三分的原因 | 实现要用接口与纯规则，桥接要用实现，而项目不能引用引用了自己的项目。若把实现放进 `DeskKit.Platform.Windows` 并让它引用 `DeskKit.Platform`，桥接再反向引用即构成循环（实现对本项目根命名空间类型的依赖原先靠命名空间嵌套隐式解析，`using` 里看不出来，容易误判为无依赖） |
+| 条件编译 | 只保留在 `DeskKit.Platform`：`#if WINDOWS` / `#else` 决定注册哪一套。`DeskKit.Platform.Windows` 由 TFM 保证，11 个文件原先的整文件守卫全部删除（已变成恒真）；该项目的 `ProjectReference` 用 `Condition="'$(TargetFramework)' == 'net10.0-windows'"`，与 `#if` 对齐，腿无法命名自己加载不了的实现 |
+| 命名空间 | 不变：`DeskKit.Platform` / `DeskKit.Platform.Windows` / `DeskKit.Platform.Interop`。因此没有一处 `using` 需要修改，新增项目名与命名空间不同名（同 `Microsoft.Extensions.DependencyInjection.Abstractions` 的做法） |
+| 未变的边界 | `Core`、`Runtime`、`Widgets`、`Persistence` 的引用方向不变；D-3 / D-6 与 §24.8 的结论均不改；`DeskKit.Platform.Tests` 仍留 `net10.0`（"纯规则可脱离平台单测" 的证明方式不变），只把引用的项目由 `DeskKit.Platform` 换成 `DeskKit.Platform.Abstractions` |
+| 验证 | build **0 警告 / 0 错误**（两 leg 均产出）；**342 测试通过 / 0 失败**；产物核对：`DeskKit.Platform/bin/*/net10.0-windows` 下存在 `DeskKit.Platform.Windows.dll`、且 `DeskKit.Platform.dll` 引用它并注册 `WindowsDesktopLayerService`；`net10.0` 下二者皆无、只注册 `NullDesktopLayerService` |
+| 未做 | `DeskKit.Platform.Tests` 未改名（其覆盖对象已迁至 `DeskKit.Platform.Abstractions`，名字可随后续改动再调整）；自检与实机启动未在本轮重跑（本轮未改任何 Windows 实现的行为，仅搬移与去守卫） |
+
 ## 附：证据索引
 
 | 结论 | 证据 |

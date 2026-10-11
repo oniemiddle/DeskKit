@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- The platform's ports and the pure rules that decide what a platform can
+         honour, with no platform behind them.
+
+         They are a project of their own rather than part of DeskKit.Platform
+         because the implementations need them and the composition needs the
+         implementations: a bridge cannot be referenced by the things it registers,
+         so what both sides depend on has to sit below both. A Windows
+         implementation referencing DeskKit.Platform, which references it back, is a
+         cycle the build refuses. -->
+    <ProjectReference Include="..\DeskKit.Core\DeskKit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- `INotificationWindowStyler` acts on a window, so this names an Avalonia
+         type. It is still the neutral side: nothing here touches Win32. -->
+    <PackageReference Include="Avalonia" />
+  </ItemGroup>
+
+</Project>

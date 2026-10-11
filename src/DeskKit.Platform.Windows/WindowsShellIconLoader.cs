@@ -1,5 +1,3 @@
-// Compiled only into the Windows target framework.
-#if WINDOWS
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -198,4 +196,3 @@ public sealed class WindowsShellIconLoader : IShellIconLoader
         return bitmap;
     }
 }
-#endif

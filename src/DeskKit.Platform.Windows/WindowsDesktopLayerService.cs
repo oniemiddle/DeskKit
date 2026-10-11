@@ -1,6 +1,4 @@
-﻿// Compiled only into the Windows target framework.
-#if WINDOWS
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using DeskKit.Platform.Interop;
 
@@ -345,4 +343,3 @@ public sealed class WindowsDesktopLayerService : IDesktopLayerService
         }
     }
 }
-#endif
